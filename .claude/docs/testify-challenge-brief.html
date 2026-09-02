@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI-Assisted Engineering Challenge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#16292E;
+    --ink-deep:#0E1E22;
+    --paper:#F2F4F2;
+    --surface:#FFFFFF;
+    --text:#1C2C30;
+    --muted:#61767A;
+    --rule:#D5DDDA;
+    --rule-soft:#E6EBE8;
+    --pass:#2E7A57;
+    --fail:#A93B2C;
+    --blocked:#B0791A;
+    --notrun:#8496 99;
+    --notrun:#849699;
+    --link:#1C6A72;
+    --sans:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+    --serif:"Newsreader",Georgia,serif;
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,monospace;
+  }
+
+  *{box-sizing:border-box}
+
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    *{transition:none!important;animation:none!important}
+  }
+
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--text);
+    font-family:var(--sans);
+    font-size:16.5px;
+    line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  a{color:var(--link)}
+
+  :focus-visible{
+    outline:2px solid var(--link);
+    outline-offset:3px;
+  }
+
+  /* ---------- hero ---------- */
+
+  .hero{
+    background:var(--ink);
+    color:#E7EDEB;
+    padding:clamp(2.5rem,6vw,5rem) clamp(1.25rem,5vw,4rem) clamp(2.5rem,5vw,4rem);
+  }
+
+  .hero-inner{max-width:1080px;margin:0 auto}
+
+  .hero h1{
+    font-family:var(--serif);
+    font-weight:500;
+    font-size:clamp(2.2rem,6vw,3.9rem);
+    line-height:1.06;
+    letter-spacing:-0.015em;
+    margin:0 0 1.1rem;
+    max-width:16ch;
+    color:#FFFFFF;
+  }
+
+  .hero p.lede{
+    font-family:var(--serif);
+    font-size:clamp(1.05rem,2.2vw,1.3rem);
+    line-height:1.55;
+    color:#B9C9C7;
+    max-width:52ch;
+    margin:0 0 2.4rem;
+  }
+
+  .hero-meta{
+    display:flex;
+    flex-wrap:wrap;
+    gap:2.2rem;
+    padding-bottom:2.6rem;
+    border-bottom:1px solid rgba(255,255,255,.14);
+    margin-bottom:2.6rem;
+  }
+  .hero-meta div{font-size:.9rem;line-height:1.4}
+  .hero-meta span{display:block;color:#7E9694;font-size:.78rem;letter-spacing:.02em}
+  .hero-meta strong{font-weight:500;color:#EAF1EF;font-size:1rem}
+
+  .sheet-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    gap:1rem;
+    margin-bottom:1.1rem;
+  }
+  .sheet-head h2{
+    font-family:var(--sans);
+    font-size:.94rem;
+    font-weight:600;
+    margin:0;
+    color:#EAF1EF;
+    letter-spacing:.01em;
+  }
+  .sheet-head p{margin:0;font-size:.85rem;color:#7E9694}
+
+  .runsheet{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(268px,1fr));
+    gap:0 2.5rem;
+  }
+  .runsheet div{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:1rem;
+    padding:.62rem 0;
+    border-bottom:1px solid rgba(255,255,255,.09);
+    font-size:.93rem;
+    color:#D2DEDB;
+  }
+  .runsheet b{font-weight:400}
+  .runsheet em{
+    font-style:normal;
+    font-family:var(--mono);
+    font-size:.74rem;
+    color:#8FA5A3;
+    border:1px solid rgba(255,255,255,.18);
+    border-radius:2px;
+    padding:.12rem .42rem;
+    white-space:nowrap;
+  }
+
+  /* ---------- layout ---------- */
+
+  .shell{
+    max-width:1080px;
+    margin:0 auto;
+    padding:clamp(2rem,5vw,3.5rem) clamp(1.25rem,5vw,4rem) 5rem;
+    display:grid;
+    grid-template-columns:1fr;
+    gap:3rem;
+  }
+
+  @media (min-width:960px){
+    .shell{grid-template-columns:200px minmax(0,1fr);gap:4rem}
+  }
+
+  nav.toc{display:none}
+  @media (min-width:960px){
+    nav.toc{
+      display:block;
+      position:sticky;
+      top:2.5rem;
+      align-self:start;
+      font-size:.87rem;
+      border-left:2px solid var(--rule);
+      padding-left:1rem;
+    }
+    nav.toc a{
+      display:block;
+      padding:.3rem 0;
+      color:var(--muted);
+      text-decoration:none;
+    }
+    nav.toc a:hover{color:var(--text)}
+  }
+
+  main{max-width:70ch}
+
+  section{margin-bottom:3.6rem;scroll-margin-top:2rem}
+
+  h2.sec{
+    font-family:var(--serif);
+    font-size:clamp(1.55rem,3.4vw,2.05rem);
+    font-weight:500;
+    line-height:1.18;
+    letter-spacing:-.01em;
+    margin:0 0 1.2rem;
+    padding-bottom:.7rem;
+    border-bottom:2px solid var(--ink);
+  }
+  h2.sec i{
+    font-style:normal;
+    font-family:var(--mono);
+    font-size:.72em;
+    color:var(--muted);
+    margin-right:.6rem;
+  }
+
+  h3{
+    font-size:1.02rem;
+    font-weight:600;
+    margin:2.1rem 0 .55rem;
+    letter-spacing:.005em;
+  }
+
+  h4{
+    font-size:.95rem;
+    font-weight:600;
+    margin:1.5rem 0 .4rem;
+    color:var(--ink);
+  }
+
+  p{margin:0 0 1rem}
+
+  ul,ol{margin:0 0 1.1rem;padding-left:1.15rem}
+  li{margin-bottom:.42rem}
+  li::marker{color:var(--muted)}
+
+  strong{font-weight:600}
+
+  code{
+    font-family:var(--mono);
+    font-size:.86em;
+    background:#E4EAE7;
+    padding:.08em .34em;
+    border-radius:2px;
+  }
+
+  pre{
+    font-family:var(--mono);
+    font-size:.82rem;
+    line-height:1.7;
+    background:var(--ink-deep);
+    color:#C9D8D5;
+    padding:1.2rem 1.3rem;
+    border-radius:3px;
+    overflow-x:auto;
+    margin:0 0 1.2rem;
+  }
+  pre code{background:none;padding:0;font-size:1em;color:inherit}
+  pre b{color:#8FD6AE;font-weight:400}
+
+  .callout{
+    background:var(--surface);
+    border-left:3px solid var(--ink);
+    padding:1.1rem 1.3rem;
+    margin:0 0 1.4rem;
+  }
+  .callout p:last-child{margin-bottom:0}
+
+  .callout.warn{border-left-color:var(--fail)}
+  .callout.warn strong{color:var(--fail)}
+
+  .rules{list-style:none;padding:0;margin:0 0 1.4rem}
+  .rules li{
+    padding:1rem 0;
+    border-top:1px solid var(--rule);
+    margin:0;
+  }
+  .rules li:last-child{border-bottom:1px solid var(--rule)}
+  .rules b{display:block;font-size:1rem;margin-bottom:.2rem}
+
+  table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:.92rem;
+    margin:0 0 1.4rem;
+  }
+  th{
+    text-align:left;
+    font-weight:600;
+    font-size:.82rem;
+    color:var(--muted);
+    padding:0 .8rem .5rem 0;
+    border-bottom:1px solid var(--ink);
+  }
+  td{
+    padding:.7rem .8rem .7rem 0;
+    border-bottom:1px solid var(--rule-soft);
+    vertical-align:top;
+  }
+  td:first-child{font-weight:600;white-space:nowrap}
+  .ms td:nth-child(2){font-family:var(--mono);font-size:.82rem;color:var(--muted);white-space:nowrap}
+
+  .status{
+    display:inline-block;
+    font-family:var(--mono);
+    font-size:.72rem;
+    padding:.1rem .45rem;
+    border-radius:2px;
+    border:1px solid;
+  }
+  .status.pass{color:var(--pass);border-color:#A8CDB9}
+  .status.fail{color:var(--fail);border-color:#DDB2AB}
+  .status.blocked{color:var(--blocked);border-color:#DFC58A}
+  .status.notrun{color:var(--notrun);border-color:var(--rule)}
+
+  .scope-out{
+    border:1px solid var(--rule);
+    padding:1.05rem 1.25rem;
+    margin-bottom:1.4rem;
+  }
+  .scope-out p:last-child{margin-bottom:0}
+
+  /* checklist */
+  .check{list-style:none;padding:0;margin:0 0 1.2rem}
+  .check li{margin:0;border-bottom:1px solid var(--rule-soft)}
+  .check button{
+    display:flex;
+    gap:.8rem;
+    align-items:flex-start;
+    width:100%;
+    text-align:left;
+    background:none;
+    border:0;
+    padding:.72rem .2rem;
+    font:inherit;
+    color:inherit;
+    cursor:pointer;
+  }
+  .check button:hover{background:#E9EEEB}
+  .box{
+    flex:0 0 auto;
+    width:17px;height:17px;
+    margin-top:.24rem;
+    border:1.5px solid var(--notrun);
+    border-radius:2px;
+    position:relative;
+  }
+  .check button[aria-pressed="true"] .box{
+    background:var(--pass);
+    border-color:var(--pass);
+  }
+  .check button[aria-pressed="true"] .box::after{
+    content:"";
+    position:absolute;
+    left:5px;top:1px;
+    width:4px;height:9px;
+    border:solid #fff;
+    border-width:0 2px 2px 0;
+    transform:rotate(43deg);
+  }
+  .check button[aria-pressed="true"] span.txt{color:var(--muted);text-decoration:line-through}
+
+  .tally{
+    font-family:var(--mono);
+    font-size:.82rem;
+    color:var(--muted);
+    margin-bottom:2rem;
+  }
+
+  footer{
+    background:var(--ink);
+    color:#93A9A7;
+    padding:2.6rem clamp(1.25rem,5vw,4rem);
+    font-size:.9rem;
+  }
+  footer div{max-width:1080px;margin:0 auto;max-width:60ch}
+  footer strong{color:#DCE6E4;font-weight:500}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <h1>The AI-assisted engineering challenge</h1>
+    <p class="lede">Build and ship a real application in two weeks, using AI at every step, and be able to defend every line of it afterwards.</p>
+
+    <div class="hero-meta">
+      <div><span>Duration</span><strong>Two weeks</strong></div>
+      <div><span>Build</span><strong>Testify, a test run tracker</strong></div>
+      <div><span>Assessment</span><strong>Code review and live walkthrough</strong></div>
+    </div>
+
+    <div class="sheet-head">
+      <h2>Your run sheet</h2>
+      <p>Nine areas, scored 1 to 5 at the end</p>
+    </div>
+    <div class="runsheet">
+      <div><b>Problem decomposition</b><em>Not run</em></div>
+      <div><b>AI direction</b><em>Not run</em></div>
+      <div><b>Code comprehension</b><em>Not run</em></div>
+      <div><b>API design</b><em>Not run</em></div>
+      <div><b>Frontend</b><em>Not run</em></div>
+      <div><b>Security</b><em>Not run</em></div>
+      <div><b>Infrastructure and containers</b><em>Not run</em></div>
+      <div><b>Testing</b><em>Not run</em></div>
+      <div><b>Communication</b><em>Not run</em></div>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+
+  <nav class="toc" aria-label="Sections">
+    <a href="#why">Why you are doing this</a>
+    <a href="#build">What you are building</a>
+    <a href="#tech">Technical requirements</a>
+    <a href="#ai">Working with AI</a>
+    <a href="#milestones">Milestones</a>
+    <a href="#assessment">Assessment</a>
+    <a href="#done">Definition of done</a>
+    <a href="#stretch">Stretch goals</a>
+    <a href="#stuck">Getting unstuck</a>
+  </nav>
+
+  <main>
+
+  <section id="why">
+    <h2 class="sec"><i>01</i>Why you are doing this</h2>
+    <p>This is not a test of whether you can write code. It is a test of whether you can direct an AI to build something real, and then stand behind what it produced.</p>
+    <p>The industry has already moved. The junior developers getting hired now are the ones who can take a vague requirement, break it down, drive an AI through the build, and then defend the result in code review. The ones who paste prompts and hope are the ones being filtered out.</p>
+    <p>By the end of this you will have a production-shaped application you can show anyone, a public repository with real history and a working pipeline, and a clear picture of where your gaps are so we can close them deliberately.</p>
+    <div class="callout">
+      <p>The gaps are the point. Do not hide them.</p>
+    </div>
+  </section>
+
+  <section id="build">
+    <h2 class="sec"><i>02</i>What you are building</h2>
+    <p><strong>Testify</strong>, a lightweight test run and defect tracker.</p>
+    <p>You know this domain already, which is deliberate. You should not be spending energy working out what the product does. Spend it on the engineering.</p>
+
+    <h3>Core functionality</h3>
+
+    <h4>Projects</h4>
+    <ul>
+      <li>Create a project with a name and description.</li>
+      <li>List and view projects.</li>
+    </ul>
+
+    <h4>Test cases</h4>
+    <ul>
+      <li>Belong to a project.</li>
+      <li>Title, preconditions, steps, expected result, priority (Low, Medium, High, Critical).</li>
+      <li>Full create, read, update, delete.</li>
+    </ul>
+
+    <h4>Test runs</h4>
+    <ul>
+      <li>Created against a project, pulling in a selected set of test cases.</li>
+      <li>Each case in a run carries a result: <span class="status notrun">Not run</span> <span class="status pass">Pass</span> <span class="status fail">Fail</span> <span class="status blocked">Blocked</span></li>
+      <li>A run is In progress or Complete, and shows a live pass rate.</li>
+    </ul>
+
+    <h4>Defects</h4>
+    <ul>
+      <li>Raised from a failed test case inside a run.</li>
+      <li>Title, description, severity, status (Open, In progress, Resolved, Closed).</li>
+      <li>Links back to the test case and run that produced it.</li>
+    </ul>
+
+    <h4>Dashboard</h4>
+    <ul>
+      <li>Per project: total cases, runs completed, current pass rate, open defects by severity.</li>
+    </ul>
+
+    <div class="scope-out">
+      <p><strong>Out of scope.</strong> No email notifications, file attachments, comment threads, real-time updates, mobile apps, or integration with a real test tool.</p>
+      <p>If you finish early, go to the stretch goals. Scope creep is a fail condition, not initiative.</p>
+    </div>
+  </section>
+
+  <section id="tech">
+    <h2 class="sec"><i>03</i>Technical requirements</h2>
+    <p>Choose your API language from TypeScript (Node), C# and .NET, Go, or Ruby on Rails. Pick the one you want to be interviewed on. Everything else below is fixed.</p>
+
+    <h3>Web application</h3>
+    <ul>
+      <li>React with TypeScript. No plain JavaScript.</li>
+      <li>Client-side routing covering: project list, project detail, test case editor, run execution, defect list, dashboard.</li>
+      <li>Loading, empty and error states on every view that fetches data. An empty table with no message is unfinished work.</li>
+      <li>Client-side validation that matches the server, not a looser version of it.</li>
+      <li>No secrets, keys or tokens in the frontend bundle.</li>
+    </ul>
+
+    <h3>API</h3>
+    <ul>
+      <li>RESTful, versioned under <code>/api/v1</code>.</li>
+      <li>Correct verbs and status codes. A failed create returns 4xx, not 200 with an error in the body.</li>
+      <li>One consistent error response shape across every endpoint.</li>
+      <li>Server-side validation on every write. Never trust the client.</li>
+      <li>Pagination anywhere a list can grow unbounded.</li>
+      <li>An OpenAPI spec, generated or hand-written, served by the app.</li>
+      <li>PostgreSQL, with the schema managed by migrations rather than by hand.</li>
+    </ul>
+
+    <h3>Containerization</h3>
+    <ul>
+      <li>A Dockerfile for the API and one for the web app.</li>
+      <li>Multi-stage builds. Your final images must not carry build tooling or source.</li>
+      <li>Containers run as a non-root user.</li>
+      <li><code>docker compose up</code> from a clean clone gives a working environment: API, web, database, migrations applied.</li>
+      <li>A <code>.dockerignore</code> that excludes what it should.</li>
+      <li>Record your image sizes in the README, and be able to explain them.</li>
+    </ul>
+
+    <h3>Infrastructure</h3>
+    <ul>
+      <li>Infrastructure as code. Terraform preferred; Pulumi or a documented equivalent is fine.</li>
+      <li>Configuration through environment variables only. Nothing environment-specific baked into an image.</li>
+      <li>Local and deployed environments kept properly separate.</li>
+      <li>A health endpoint reporting application and database status, wired into your deployment platform.</li>
+      <li>A documented persistence or backup strategy, even if you do not automate it.</li>
+    </ul>
+
+    <h3>Security</h3>
+    <p>This is not optional polish. Treat it as core.</p>
+    <ul>
+      <li>Registration and login. Passwords hashed with bcrypt or argon2. Never plain text, never MD5 or SHA1.</li>
+      <li>Sessions via JWT or secure HTTP-only cookies, with your choice justified in writing.</li>
+      <li>A user can only see and modify data in projects they belong to. Prove it with a test.</li>
+      <li>Input validation and output encoding on every user-supplied field.</li>
+      <li>Parameterised queries or an ORM. No string-concatenated SQL anywhere.</li>
+      <li>Rate limiting on the authentication endpoints.</li>
+      <li>Security headers set: CSP, HSTS, X-Content-Type-Options, X-Frame-Options.</li>
+      <li>CORS locked to a known origin, never <code>*</code>.</li>
+      <li>Secrets in GitHub Secrets and environment variables. If one lands in a commit, rotate it and write up what happened.</li>
+      <li>Dependency scanning on (Dependabot or Trivy), with findings triaged rather than ignored.</li>
+      <li>A <code>SECURITY.md</code> naming which OWASP Top 10 risks you addressed, how, and which ones you knowingly did not.</li>
+    </ul>
+
+    <h3>GitHub and deployment</h3>
+    <ul>
+      <li>Public repository with meaningful commit history. One giant "initial commit" is a fail.</li>
+      <li>Short-lived branches. Every change reaches <code>main</code> through a pull request, including your own.</li>
+      <li>A pull request template, and descriptions that explain the change.</li>
+      <li>Actions pipeline on every pull request: lint, type-check, test, build both images.</li>
+      <li>On merge to <code>main</code>: build, push, deploy.</li>
+      <li>Publicly reachable over HTTPS. Fly.io, Render, Railway or AWS free tier are all fine. Cheapest thing that works.</li>
+      <li>Branch protection on <code>main</code> requiring the pipeline to pass.</li>
+      <li>Pipeline status badge in the README.</li>
+    </ul>
+
+    <h3>Testing</h3>
+    <p>You are a QA. This is your strength, so the bar here is higher than elsewhere.</p>
+    <ul>
+      <li>Unit tests on business logic: pass rate calculation, status transitions, authorization rules.</li>
+      <li>Integration tests against the API, hitting a real database in a container.</li>
+      <li>At least six end-to-end tests (Playwright or Cypress): register, log in, create a project, create a case, execute a run, raise a defect.</li>
+      <li>Tests run in CI and block the merge when they fail.</li>
+      <li>A short written test strategy: what you test at each level, and why.</li>
+    </ul>
+  </section>
+
+  <section id="ai">
+    <h2 class="sec"><i>04</i>How you must work with AI</h2>
+    <p>Use AI aggressively. That is the whole point. These five rules are not negotiable.</p>
+
+    <ol class="rules">
+      <li>
+        <b>You own every line.</b>
+        If it is in your repository, you can explain it. "The AI wrote it" is not an answer in a code review, an interview, or an incident.
+      </li>
+      <li>
+        <b>Keep a decision log.</b>
+        Maintain <code>docs/DECISIONS.md</code>, one entry per significant decision rather than per prompt. I expect fifteen to thirty entries by the end.
+      </li>
+      <li>
+        <b>Verify every security and infrastructure suggestion.</b>
+        Models are confidently wrong about auth, CORS, container permissions and IAM more often than anywhere else. Check it against primary documentation and record the source.
+      </li>
+      <li>
+        <b>Prompt small.</b>
+        "Build me a test management app" produces something you cannot maintain. Work at the level of one endpoint, one component, one migration. If a response is longer than you can review carefully, the prompt was too big.
+      </li>
+      <li>
+        <b>Log where AI cost you time.</b>
+        Hallucinated APIs, outdated patterns, code that looked right and was not. This is not a criticism of the tooling. Knowing its failure modes is the skill.
+      </li>
+    </ol>
+
+    <h3>Decision log format</h3>
+<pre><code><b>## [Date] [Decision]</b>
+
+Context: what I was trying to do
+What I asked: the substance of the prompt
+What it gave me: summarised
+What I changed and why: the important part
+What I did not understand at first: be honest here</code></pre>
+
+    <div class="callout">
+      <p>That last field is the most valuable thing in this exercise. Do not sanitise it.</p>
+    </div>
+  </section>
+
+  <section id="milestones">
+    <h2 class="sec"><i>05</i>Milestones</h2>
+    <p>At each milestone, push and tell me. I review the code and the log, not just the running app.</p>
+    <table class="ms">
+      <thead><tr><th>Milestone</th><th>Due</th><th>What must be true</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Foundations</td><td>Day 2</td>
+          <td>Repo created, compose runs API and database locally, health endpoint responds, first migration applied, CI lints on pull requests</td>
+        </tr>
+        <tr>
+          <td>API complete</td><td>Day 5</td>
+          <td>All entities have working CRUD, validation, pagination; OpenAPI spec served; integration tests green</td>
+        </tr>
+        <tr>
+          <td>Auth and security</td><td>Day 7</td>
+          <td>Registration and login working, authorization enforced and tested, headers set, <code>SECURITY.md</code> written</td>
+        </tr>
+        <tr>
+          <td>Web application</td><td>Day 11</td>
+          <td>All views built and wired to the API, every state handled, end-to-end tests green</td>
+        </tr>
+        <tr>
+          <td>Deployed</td><td>Day 14</td>
+          <td>Infrastructure applied from code, running over HTTPS, pipeline deploys on merge, README and decision log complete</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="assessment">
+    <h2 class="sec"><i>06</i>How you will be assessed</h2>
+    <p>The nine areas at the top of this page, each scored 1 to 5. I am looking at the shape of the profile, not the total.</p>
+    <table>
+      <tbody>
+        <tr><td>Problem decomposition</td><td>Did you break the work down before prompting, or prompt and then react</td></tr>
+        <tr><td>AI direction</td><td>Prompt quality, iteration, knowing when to stop asking and start reading documentation</td></tr>
+        <tr><td>Code comprehension</td><td>Can you explain any file I point at, cold</td></tr>
+        <tr><td>API design</td><td>Resource modelling, status codes, consistency, error handling</td></tr>
+        <tr><td>Frontend</td><td>State management, component structure, handling of loading and failure</td></tr>
+        <tr><td>Security</td><td>Depth of understanding against checklist compliance</td></tr>
+        <tr><td>Infrastructure</td><td>Whether you understand what you deployed, or just got it working</td></tr>
+        <tr><td>Testing</td><td>Given your background, I expect this to be your strongest column</td></tr>
+        <tr><td>Communication</td><td>README, decision log, pull request descriptions, how you explain trade-offs</td></tr>
+      </tbody>
+    </table>
+
+    <h3>The walkthrough</h3>
+    <p>Forty-five minutes at the end. I will:</p>
+    <ol>
+      <li>Pick three files at random and ask you to walk me through them.</li>
+      <li>Ask you to make a small change live, with no AI assistance.</li>
+      <li>Ask you to explain one security decision and one infrastructure decision in depth.</li>
+      <li>Ask what you would do differently with another two weeks.</li>
+    </ol>
+
+    <div class="callout warn">
+      <p><strong>A working application on its own does not pass this.</strong> A deployed app you cannot explain scores lower than a partly finished one you can.</p>
+    </div>
+  </section>
+
+  <section id="done">
+    <h2 class="sec"><i>07</i>Definition of done</h2>
+    <p>Tick these off as you go. Nothing here is negotiable, and nothing saves between visits, so treat it as a working view rather than a record.</p>
+    <ul class="check" id="checklist">
+      <li><button type="button" aria-pressed="false"><span class="box" aria-hidden="true"></span><span class="txt">Clone then <code>docker compose up</code> gives a working environment, with no manual steps beyond copying <code>.env.example</code></span></button></li>
+      <li><button type="button" aria-pressed="false"><span class="box" aria-hidden="true"></span><span class="txt">Deployed application reachable over HTTPS</span></button></li>
+      <li><button type="button" aria-pressed="false"><span class="box" aria-hidden="true"></span><span class="txt">Every core feature works end to end</span></button></li>
+      <li><button type="button" aria-pressed="false"><span class="box" aria-hidden="true"></span><span class="txt">Pipeline green on <code>main</code>, branch protection enabled</span></button></li>
+      <li><button type="button" aria-pressed="false"><span class="box" aria-hidden="true"></span><span class="txt">Unit, integration and end-to-end tests all present and running in CI</span></button></li>
+      <li><button type="button" aria-pressed="false"><span class="box" aria-hidden="true"></span><span class="txt"><code>README.md</code>: what it is, architecture diagram, how to run it, how to deploy it, known limitations</span></button></li>
+      <li><button type="button" aria-pressed="false"><span class="box" aria-hidden="true"></span><span class="txt"><code>SECURITY.md</code> complete</span></button></li>
+      <li><button type="button" aria-pressed="false"><span class="box" aria-hidden="true"></span><span class="txt"><code>docs/DECISIONS.md</code> complete and honest</span></button></li>
+      <li><button type="button" aria-pressed="false"><span class="box" aria-hidden="true"></span><span class="txt">No secrets anywhere in the git history</span></button></li>
+      <li><button type="button" aria-pressed="false"><span class="box" aria-hidden="true"></span><span class="txt">You can explain any file in the repository</span></button></li>
+    </ul>
+    <p class="tally" id="tally" aria-live="polite">0 of 10 done</p>
+  </section>
+
+  <section id="stretch">
+    <h2 class="sec"><i>08</i>Stretch goals</h2>
+    <p>Only once the definition of done is signed off.</p>
+    <ul>
+      <li>Import test cases from CSV.</li>
+      <li>Role-based access control (admin, tester, viewer) with tests proving each boundary.</li>
+      <li>Structured logging with correlation IDs traced from browser through to database.</li>
+      <li>A staging environment, promoted through the pipeline.</li>
+      <li>Run history and a pass rate trend over time.</li>
+      <li>An ephemeral preview environment per pull request.</li>
+    </ul>
+  </section>
+
+  <section id="stuck">
+    <h2 class="sec"><i>09</i>Getting unstuck</h2>
+    <p>Ask me anything, at any point, on one condition: tell me what you already tried and what the AI told you.</p>
+    <p>"This does not work" gets you a question back. "I asked for X, got Y, expected Z, and here is what I checked" gets you a real answer.</p>
+  </section>
+
+  </main>
+</div>
+
+<footer>
+  <div>
+    <p><strong>Being stuck is not the failure. Being stuck quietly for two days is.</strong></p>
+  </div>
+</footer>
+
+<script>
+  (function(){
+    var list = document.getElementById('checklist');
+    var tally = document.getElementById('tally');
+    var buttons = list.querySelectorAll('button');
+
+    function update(){
+      var done = 0;
+      buttons.forEach(function(b){ if(b.getAttribute('aria-pressed') === 'true'){ done++; } });
+      tally.textContent = done + ' of ' + buttons.length + ' done';
+    }
+
+    buttons.forEach(function(b){
+      b.addEventListener('click', function(){
+        var on = b.getAttribute('aria-pressed') === 'true';
+        b.setAttribute('aria-pressed', on ? 'false' : 'true');
+        update();
+      });
+    });
+  })();
+</script>
+
+</body>
+</html>
