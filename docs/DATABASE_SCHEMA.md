@@ -243,6 +243,19 @@ Example:
 
 ## Relationship Diagram (Text Format)
 
+Users
+↓ owns (1:N)
+↓
+Projects ← → ProjectMembers (many:many junction)
+↓ contains (1:N)
+↓
+TestCases
+↓ included in (1:N)
+↓
+TestRunResults ← ← TestRuns (1:N)
+↓ triggers (1:1)
+↓
+Defects
 
 ## Foreign Key Summary
 

@@ -444,3 +444,487 @@ Delete a test case.
 - 404: Test case not found
 - 403: Forbidden (user not a member)
 - 401: Unauthorized
+
+
+---
+
+### Test Runs Endpoints
+
+#### GET /projects/:id/runs
+
+List all test runs for a project.
+
+**Request:** No body
+
+Query Parameters (optional):
+- page: Page number (default: 1)
+- limit: Results per page (default: 10)
+
+Example:
+GET /projects/uuid-here/runs?page=1&limit=10
+
+**Response (200 OK):**
+```json
+{
+  "data": {
+    "runs": [
+      {
+        "id": "uuid-here",
+        "project_id": "project-uuid",
+        "status": "In Progress",
+        "pass_rate": 75.5,
+        "total_cases": 10,
+        "passed_count": 7,
+        "failed_count": 2,
+        "blocked_count": 1,
+        "not_run_count": 0,
+        "created_at": "2024-01-02T10:00:00Z",
+        "updated_at": "2024-01-02T10:30:00Z",
+        "completed_at": null
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 10,
+      "total": 12
+    }
+  },
+  "status": 200
+}
+```
+
+**Error Responses:**
+- 404: Project not found
+- 403: Forbidden (user not a member)
+- 401: Unauthorized
+
+---
+
+#### POST /projects/:id/runs
+
+Create a new test run and select which test cases to include.
+
+**Request:**
+```json
+{
+  "test_case_ids": ["case-uuid-1", "case-uuid-2", "case-uuid-3"]
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "data": {
+    "id": "uuid-here",
+    "project_id": "project-uuid",
+    "status": "In Progress",
+    "pass_rate": 0,
+    "total_cases": 3,
+    "passed_count": 0,
+    "failed_count": 0,
+    "blocked_count": 0,
+    "not_run_count": 3,
+    "created_at": "2024-01-02T10:00:00Z",
+    "updated_at": "2024-01-02T10:00:00Z",
+    "completed_at": null
+  },
+  "status": 201
+}
+```
+
+**Error Responses:**
+- 400: test_case_ids is required
+- 400: test_case_ids must be non-empty array
+- 400: Invalid test case IDs
+- 404: Project not found
+- 403: Forbidden (user not a member)
+- 401: Unauthorized
+
+---
+
+#### GET /projects/:id/runs/:run_id
+
+Get a specific test run with all its test results.
+
+**Request:** No body
+
+**Response (200 OK):**
+```json
+{
+  "data": {
+    "id": "uuid-here",
+    "project_id": "project-uuid",
+    "status": "In Progress",
+    "pass_rate": 75.5,
+    "total_cases": 4,
+    "passed_count": 3,
+    "failed_count": 1,
+    "blocked_count": 0,
+    "not_run_count": 0,
+    "test_results": [
+      {
+        "result_id": "result-uuid-1",
+        "test_case_id": "case-uuid-1",
+        "test_case_title": "Login with valid credentials",
+        "result": "Pass",
+        "notes": null
+      },
+      {
+        "result_id": "result-uuid-2",
+        "test_case_id": "case-uuid-2",
+        "test_case_title": "Login with invalid password",
+        "result": "Fail",
+        "notes": "Password field not accepting special chars"
+      }
+    ],
+    "created_at": "2024-01-02T10:00:00Z",
+    "updated_at": "2024-01-02T10:30:00Z",
+    "completed_at": null
+  },
+  "status": 200
+}
+```
+
+**Error Responses:**
+- 404: Test run not found
+- 403: Forbidden (user not a member of project)
+- 401: Unauthorized
+
+---
+
+#### PATCH /projects/:id/runs/:run_id
+
+Update a test run result (mark test cases as Pass/Fail/Blocked/Not Run).
+
+**Request:**
+```json
+{
+  "status": "Complete",
+  "test_results": [
+    {
+      "test_result_id": "result-uuid-1",
+      "result": "Pass",
+      "notes": null
+    },
+    {
+      "test_result_id": "result-uuid-2",
+      "result": "Fail",
+      "notes": "Password field not accepting special chars"
+    }
+  ]
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "data": {
+    "id": "uuid-here",
+    "project_id": "project-uuid",
+    "status": "Complete",
+    "pass_rate": 50.0,
+    "total_cases": 2,
+    "passed_count": 1,
+    "failed_count": 1,
+    "blocked_count": 0,
+    "not_run_count": 0,
+    "created_at": "2024-01-02T10:00:00Z",
+    "updated_at": "2024-01-02T11:00:00Z",
+    "completed_at": "2024-01-02T11:00:00Z"
+  },
+  "status": 200
+}
+```
+
+**Error Responses:**
+- 400: Invalid result (must be Pass/Fail/Blocked/Not Run)
+- 400: Invalid status (must be In Progress or Complete)
+- 404: Test run or result not found
+- 403: Forbidden (user not a member)
+- 401: Unauthorized
+
+---
+
+#### DELETE /projects/:id/runs/:run_id
+
+Delete a test run and all its results.
+
+**Request:** No body
+
+**Response (204 No Content):**
+
+(no response body)
+
+**Error Responses:**
+- 404: Test run not found
+- 403: Forbidden (user not a member)
+- 401: Unauthorized
+
+
+---
+
+### Defects Endpoints
+
+#### GET /projects/:id/defects
+
+List all defects in a project.
+
+**Request:** No body
+
+Query Parameters (optional):
+- status: Filter by status (Open/In Progress/Resolved/Closed)
+- severity: Filter by severity (Low/Medium/High/Critical)
+- page: Page number (default: 1)
+- limit: Results per page (default: 10)
+
+Example:
+GET /projects/uuid-here/defects?status=Open&severity=High&page=1&limit=10
+
+**Response (200 OK):**
+```json
+{
+  "data": {
+    "defects": [
+      {
+        "id": "uuid-here",
+        "title": "Password field rejects special chars",
+        "description": "Users cannot log in if password contains ! or @",
+        "severity": "High",
+        "status": "Open",
+        "test_case_id": "case-uuid-2",
+        "test_case_title": "Login with invalid password",
+        "test_run_result_id": "result-uuid-2",
+        "created_at": "2024-01-02T10:10:00Z",
+        "updated_at": "2024-01-02T10:10:00Z",
+        "resolved_at": null
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 10,
+      "total": 5
+    }
+  },
+  "status": 200
+}
+```
+
+**Error Responses:**
+- 404: Project not found
+- 403: Forbidden (user not a member)
+- 401: Unauthorized
+
+---
+
+#### POST /projects/:id/defects
+
+Create a new defect from a failed test result.
+
+**Request:**
+```json
+{
+  "title": "Password field rejects special chars",
+  "description": "Users cannot log in if password contains ! or @",
+  "severity": "High",
+  "test_case_id": "case-uuid-2",
+  "test_run_result_id": "result-uuid-2"
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "data": {
+    "id": "uuid-here",
+    "title": "Password field rejects special chars",
+    "description": "Users cannot log in if password contains ! or @",
+    "severity": "High",
+    "status": "Open",
+    "test_case_id": "case-uuid-2",
+    "test_case_title": "Login with invalid password",
+    "test_run_result_id": "result-uuid-2",
+    "created_at": "2024-01-02T10:10:00Z",
+    "updated_at": "2024-01-02T10:10:00Z",
+    "resolved_at": null
+  },
+  "status": 201
+}
+```
+
+**Error Responses:**
+- 400: Title is required
+- 400: Description is required
+- 400: Severity is required (must be Low/Medium/High/Critical)
+- 400: test_case_id and test_run_result_id are required
+- 404: Test case or test run result not found
+- 404: Project not found
+- 403: Forbidden (user not a member)
+- 401: Unauthorized
+
+---
+
+#### GET /projects/:id/defects/:defect_id
+
+Get a specific defect.
+
+**Request:** No body
+
+**Response (200 OK):**
+```json
+{
+  "data": {
+    "id": "uuid-here",
+    "title": "Password field rejects special chars",
+    "description": "Users cannot log in if password contains ! or @",
+    "severity": "High",
+    "status": "Open",
+    "test_case_id": "case-uuid-2",
+    "test_case_title": "Login with invalid password",
+    "test_run_result_id": "result-uuid-2",
+    "created_at": "2024-01-02T10:10:00Z",
+    "updated_at": "2024-01-02T10:10:00Z",
+    "resolved_at": null
+  },
+  "status": 200
+}
+```
+
+**Error Responses:**
+- 404: Defect not found
+- 403: Forbidden (user not a member of project)
+- 401: Unauthorized
+
+---
+
+#### PATCH /projects/:id/defects/:defect_id
+
+Update a defect status (user can change Open → In Progress → Resolved → Closed).
+
+**Request:**
+```json
+{
+  "status": "In Progress",
+  "severity": "High"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "data": {
+    "id": "uuid-here",
+    "title": "Password field rejects special chars",
+    "description": "Users cannot log in if password contains ! or @",
+    "severity": "High",
+    "status": "In Progress",
+    "test_case_id": "case-uuid-2",
+    "test_case_title": "Login with invalid password",
+    "test_run_result_id": "result-uuid-2",
+    "created_at": "2024-01-02T10:10:00Z",
+    "updated_at": "2024-01-02T11:00:00Z",
+    "resolved_at": null
+  },
+  "status": 200
+}
+```
+
+**Error Responses:**
+- 400: Invalid status (must be Open/In Progress/Resolved/Closed)
+- 400: Invalid severity (must be Low/Medium/High/Critical)
+- 404: Defect not found
+- 403: Forbidden (user not a member)
+- 401: Unauthorized
+
+---
+
+#### DELETE /projects/:id/defects/:defect_id
+
+Delete a defect.
+
+**Request:** No body
+
+**Response (204 No Content):**
+
+(no response body)
+
+**Error Responses:**
+- 404: Defect not found
+- 403: Forbidden (user not a member)
+- 401: Unauthorized
+
+
+---
+
+### Dashboard Endpoint
+
+#### GET /projects/:id/dashboard
+
+Get project dashboard with summary statistics.
+
+**Request:** No body
+
+**Response (200 OK):**
+```json
+{
+  "data": {
+    "project_id": "uuid-here",
+    "project_name": "WebApp Tests",
+    "total_test_cases": 10,
+    "total_test_runs": 5,
+    "latest_run_id": "run-uuid-1",
+    "latest_run_status": "Complete",
+    "latest_run_pass_rate": 85.0,
+    "overall_pass_rate": 78.0,
+    "open_defects_by_severity": {
+      "Critical": 1,
+      "High": 2,
+      "Medium": 3,
+      "Low": 1
+    },
+    "total_open_defects": 7,
+    "defects_by_status": {
+      "Open": 5,
+      "In Progress": 2,
+      "Resolved": 0,
+      "Closed": 0
+    },
+    "recent_defects": [
+      {
+        "id": "defect-uuid-1",
+        "title": "Password field rejects special chars",
+        "severity": "High",
+        "status": "Open",
+        "created_at": "2024-01-02T10:10:00Z"
+      }
+    ]
+  },
+  "status": 200
+}
+```
+
+**Error Responses:**
+- 404: Project not found
+- 403: Forbidden (user not a member)
+- 401: Unauthorized
+
+---
+
+## Summary of All Endpoints
+
+Total: 18 endpoints across 5 resource groups
+
+| Resource | Endpoints |
+|----------|-----------|
+| Authentication | 3 (register, login, logout) |
+| Projects | 5 (GET list, POST create, GET/:id, PATCH, DELETE) |
+| Test Cases | 5 (GET list, POST create, GET/:id, PATCH, DELETE) |
+| Test Runs | 5 (GET list, POST create, GET/:id, PATCH, DELETE) |
+| Defects | 5 (GET list, POST create, GET/:id, PATCH, DELETE) |
+| Dashboard | 1 (GET summary) |
+
+All endpoints follow consistent patterns:
+- Success responses include `{ "data": {...}, "status": 200 }`
+- Error responses include `{ "error": {...}, "status": 4xx }`
+- Pagination: `?page=1&limit=10`
+- All timestamps in UTC ISO format
+- Authorization enforced on all endpoints except /auth/register and /auth/login
