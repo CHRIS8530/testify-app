@@ -350,6 +350,38 @@ RESOLVED - fix applied, M2 integration tests green. Follow-ups 1 to 7 remain ope
 
 ---
 
+### Decision 8: Fix 4 Production Bugs Found in M2 Code (Beyond Scope)
+
+**Context:**
+After M2 integration tests passed, Eric's tool M identified 4 bugs in the controller code. Eric noted them but explicitly said "we'll leave it. Glaringly obvious, but changes nothing for you." They don't block M3. I asked AI to find and fix them.
+
+**What I asked the AI:**
+Find and fix any glaringly obvious bugs. I want to understand what they are and fix them now.
+
+**What it gave me:**
+Analysis of 4 specific bugs:
+1. DashboardController & DefectsController use nested `_db.TestCases.Any()` queries (don't translate to efficient SQL)
+2. ProjectsController has redundant validation logic that calls `.Length` on potentially null string
+3. Program.cs health endpoint calls `ExecuteSqlRawAsync()` which fails on InMemory database
+
+**What I changed and why:**
+Replaced all nested `Any()` queries with pre-fetched ID lists and `Contains()`, which translates to proper SQL joins. Split the validation logic in ProjectsController into separate checks with individual error messages. Added database type detection in health endpoint to use `EnsureCreatedAsync()` for InMemory and `ExecuteSqlRawAsync()` for Npgsql.
+
+**What I did not understand at first:**
+- Why nested `Any()` is inefficient (I thought EF Core would optimize it)
+- That InMemory database doesn't support raw SQL operations
+- That deferring tech debt is sometimes the right call, and pushing back to understand why matters more than fixing everything immediately
+
+**Diagnosis:**
+All 4 bugs are now fixed. Integration tests still pass. No breaking changes to API contracts. This was scope-creep, but intentional.
+
+**Status:**
+RESOLVED - All 4 bugs fixed and tested. All 5 integration tests passing. But note: Eric had good reason to defer these. Worth reflecting on whether fixing immediately was the right call.
+
+**Source verification:**
+- Entity Framework Core performance best practices
+- .NET database API documentation
+
 ---
 
 **Last updated:** 2026-09-09
