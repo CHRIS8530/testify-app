@@ -5,6 +5,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services
 builder.Services.AddOpenApi();
+builder.Services.AddControllers();
 
 // Configure DbContext with conditional provider (InMemory for tests, PostgreSQL for production)
 if (builder.Environment.IsEnvironment("Test"))

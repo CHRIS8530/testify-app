@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,13 +21,7 @@ namespace Testify.Api.Tests
             var factory = new WebApplicationFactory<Program>()
                 .WithWebHostBuilder(builder =>
                 {
-                    builder.UseSetting("ASPNETCORE_ENVIRONMENT", "Test");
-                    builder.ConfigureServices(services =>
-                    {
-                        var descriptor = services.FirstOrDefault(d => d.ServiceType == typeof(DbContextOptions<TestifyDbContext>));
-                        if (descriptor != null)
-                            services.Remove(descriptor);
-                    });
+                    builder.UseEnvironment("Test");
                 });
 
             _client = factory.CreateClient();
