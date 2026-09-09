@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "cYXn/+lDaVM=",
+  "dgSpecHash": "QLSVMq3rr0s=",
   "success": true,
   "projectFilePath": "C:\\Users\\chris\\testify-app\\api\\Testify.Api.csproj",
   "expectedPackageFiles": [
@@ -13,10 +13,11 @@
     "C:\\Users\\chris\\.nuget\\packages\\microsoft.codeanalysis.csharp.workspaces\\5.0.0\\microsoft.codeanalysis.csharp.workspaces.5.0.0.nupkg.sha512",
     "C:\\Users\\chris\\.nuget\\packages\\microsoft.codeanalysis.workspaces.common\\5.0.0\\microsoft.codeanalysis.workspaces.common.5.0.0.nupkg.sha512",
     "C:\\Users\\chris\\.nuget\\packages\\microsoft.codeanalysis.workspaces.msbuild\\5.0.0\\microsoft.codeanalysis.workspaces.msbuild.5.0.0.nupkg.sha512",
-    "C:\\Users\\chris\\.nuget\\packages\\microsoft.entityframeworkcore\\10.0.11\\microsoft.entityframeworkcore.10.0.11.nupkg.sha512",
-    "C:\\Users\\chris\\.nuget\\packages\\microsoft.entityframeworkcore.abstractions\\10.0.11\\microsoft.entityframeworkcore.abstractions.10.0.11.nupkg.sha512",
-    "C:\\Users\\chris\\.nuget\\packages\\microsoft.entityframeworkcore.analyzers\\10.0.11\\microsoft.entityframeworkcore.analyzers.10.0.11.nupkg.sha512",
+    "C:\\Users\\chris\\.nuget\\packages\\microsoft.entityframeworkcore\\10.0.12\\microsoft.entityframeworkcore.10.0.12.nupkg.sha512",
+    "C:\\Users\\chris\\.nuget\\packages\\microsoft.entityframeworkcore.abstractions\\10.0.12\\microsoft.entityframeworkcore.abstractions.10.0.12.nupkg.sha512",
+    "C:\\Users\\chris\\.nuget\\packages\\microsoft.entityframeworkcore.analyzers\\10.0.12\\microsoft.entityframeworkcore.analyzers.10.0.12.nupkg.sha512",
     "C:\\Users\\chris\\.nuget\\packages\\microsoft.entityframeworkcore.design\\10.0.11\\microsoft.entityframeworkcore.design.10.0.11.nupkg.sha512",
+    "C:\\Users\\chris\\.nuget\\packages\\microsoft.entityframeworkcore.inmemory\\10.0.12\\microsoft.entityframeworkcore.inmemory.10.0.12.nupkg.sha512",
     "C:\\Users\\chris\\.nuget\\packages\\microsoft.entityframeworkcore.relational\\10.0.11\\microsoft.entityframeworkcore.relational.10.0.11.nupkg.sha512",
     "C:\\Users\\chris\\.nuget\\packages\\microsoft.entityframeworkcore.tools\\10.0.11\\microsoft.entityframeworkcore.tools.10.0.11.nupkg.sha512",
     "C:\\Users\\chris\\.nuget\\packages\\microsoft.extensions.dependencymodel\\10.0.11\\microsoft.extensions.dependencymodel.10.0.11.nupkg.sha512",

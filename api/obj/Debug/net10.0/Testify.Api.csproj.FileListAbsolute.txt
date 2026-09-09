@@ -121,3 +121,4 @@ C:\Users\chris\testify-app\api\obj\Debug\net10.0\refint\Testify.Api.dll
 C:\Users\chris\testify-app\api\obj\Debug\net10.0\Testify.Api.pdb
 C:\Users\chris\testify-app\api\obj\Debug\net10.0\Testify.Api.genruntimeconfig.cache
 C:\Users\chris\testify-app\api\obj\Debug\net10.0\ref\Testify.Api.dll
+C:\Users\chris\testify-app\api\bin\Debug\net10.0\Microsoft.EntityFrameworkCore.InMemory.dll

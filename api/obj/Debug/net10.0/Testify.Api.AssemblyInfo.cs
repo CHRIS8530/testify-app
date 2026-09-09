@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Testify.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c6fa9680080c44a731095531b48e22b7d7641640")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d1fa4979295b1a3c746b271181865b6d91bb21df")]
 [assembly: System.Reflection.AssemblyProductAttribute("Testify.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Testify.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
