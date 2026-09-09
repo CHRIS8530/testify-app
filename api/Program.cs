@@ -5,7 +5,6 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services
 builder.Services.AddOpenApi();
-builder.Services.AddControllers();
 
 // Configure DbContext with conditional provider (InMemory for tests, PostgreSQL for production)
 if (builder.Environment.IsEnvironment("Test"))
@@ -32,6 +31,8 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.AddControllers();
+
 var app = builder.Build();
 
 // Apply migrations automatically (skip for InMemory tests)
@@ -53,11 +54,17 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseCors("AllowAll");
 
-// Health check endpoint
+// Health check endpoint - works with both Npgsql and InMemory
 app.MapGet("/api/v1/health", async (TestifyDbContext db) =>
 {
     try
     {
+        if (db.Database.IsInMemory())
+        {
+            await db.Database.EnsureCreatedAsync();
+            return Results.Ok(new { status = "ok", database = "connected" });
+        }
+
         await db.Database.ExecuteSqlRawAsync("SELECT 1");
         return Results.Ok(new { status = "ok", database = "connected" });
     }

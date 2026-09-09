@@ -34,8 +34,13 @@ namespace Testify.Api.Controllers
             var passedResults = totalResults.Count(r => r.Result == "Pass");
             var passRate = totalResults.Count > 0 ? (int)Math.Round(100.0 * passedResults / totalResults.Count) : 0;
 
+            var testCaseIds = await _db.TestCases
+                .Where(tc => tc.ProjectId == projectId)
+                .Select(tc => tc.Id)
+                .ToListAsync();
+
             var openDefects = await _db.Defects
-                .Where(d => _db.TestCases.Any(tc => tc.Id == d.TestCaseId && tc.ProjectId == projectId) && d.Status == "Open")
+                .Where(d => testCaseIds.Contains(d.TestCaseId) && d.Status == "Open")
                 .ToListAsync();
 
             var defectsBySeverity = openDefects
@@ -44,13 +49,13 @@ namespace Testify.Api.Controllers
                 .ToList();
 
             var defectsByStatus = await _db.Defects
-                .Where(d => _db.TestCases.Any(tc => tc.Id == d.TestCaseId && tc.ProjectId == projectId))
+                .Where(d => testCaseIds.Contains(d.TestCaseId))
                 .GroupBy(d => d.Status)
                 .Select(g => new { status = g.Key, count = g.Count() })
                 .ToListAsync();
 
             var recentDefects = await _db.Defects
-                .Where(d => _db.TestCases.Any(tc => tc.Id == d.TestCaseId && tc.ProjectId == projectId))
+                .Where(d => testCaseIds.Contains(d.TestCaseId))
                 .OrderByDescending(d => d.CreatedAt)
                 .Take(5)
                 .Select(d => new { id = d.Id, title = d.Title, severity = d.Severity, status = d.Status, created_at = d.CreatedAt })

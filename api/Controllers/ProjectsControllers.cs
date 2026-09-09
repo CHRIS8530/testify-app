@@ -51,8 +51,11 @@ namespace Testify.Api.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateProject([FromBody] CreateProjectRequest req)
         {
-            if (string.IsNullOrWhiteSpace(req.Name) || req.Name.Length > 255)
-                return BadRequest(new { error = new { message = "Name is required and must be <= 255 characters", code = "INVALID_NAME" }, status = 400 });
+            if (string.IsNullOrWhiteSpace(req.Name))
+                return BadRequest(new { error = new { message = "Name is required", code = "INVALID_NAME" }, status = 400 });
+
+            if (req.Name.Length > 255)
+                return BadRequest(new { error = new { message = "Name must be <= 255 characters", code = "INVALID_NAME" }, status = 400 });
 
             var project = new Project
             {

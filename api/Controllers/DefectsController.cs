@@ -26,7 +26,12 @@ namespace Testify.Api.Controllers
             if (project == null)
                 return NotFound(new { error = new { message = "Project not found", code = "NOT_FOUND" }, status = 404 });
 
-            var query = _db.Defects.Where(d => _db.TestCases.Any(tc => tc.Id == d.TestCaseId && tc.ProjectId == projectId));
+            var testCaseIds = await _db.TestCases
+                .Where(tc => tc.ProjectId == projectId)
+                .Select(tc => tc.Id)
+                .ToListAsync();
+
+            var query = _db.Defects.Where(d => testCaseIds.Contains(d.TestCaseId));
 
             if (!string.IsNullOrWhiteSpace(status))
                 query = query.Where(d => d.Status == status);
@@ -77,7 +82,12 @@ namespace Testify.Api.Controllers
         [HttpGet("{defectId}")]
         public async Task<IActionResult> GetDefect(Guid projectId, Guid defectId)
         {
-            var defect = await _db.Defects.FirstOrDefaultAsync(d => d.Id == defectId && _db.TestCases.Any(tc => tc.Id == d.TestCaseId && tc.ProjectId == projectId));
+            var testCaseIds = await _db.TestCases
+                .Where(tc => tc.ProjectId == projectId)
+                .Select(tc => tc.Id)
+                .ToListAsync();
+
+            var defect = await _db.Defects.FirstOrDefaultAsync(d => d.Id == defectId && testCaseIds.Contains(d.TestCaseId));
             if (defect == null)
                 return NotFound(new { error = new { message = "Defect not found", code = "NOT_FOUND" }, status = 404 });
 
@@ -87,7 +97,12 @@ namespace Testify.Api.Controllers
         [HttpPatch("{defectId}")]
         public async Task<IActionResult> UpdateDefect(Guid projectId, Guid defectId, [FromBody] UpdateDefectRequest req)
         {
-            var defect = await _db.Defects.FirstOrDefaultAsync(d => d.Id == defectId && _db.TestCases.Any(tc => tc.Id == d.TestCaseId && tc.ProjectId == projectId));
+            var testCaseIds = await _db.TestCases
+                .Where(tc => tc.ProjectId == projectId)
+                .Select(tc => tc.Id)
+                .ToListAsync();
+
+            var defect = await _db.Defects.FirstOrDefaultAsync(d => d.Id == defectId && testCaseIds.Contains(d.TestCaseId));
             if (defect == null)
                 return NotFound(new { error = new { message = "Defect not found", code = "NOT_FOUND" }, status = 404 });
 
@@ -110,7 +125,12 @@ namespace Testify.Api.Controllers
         [HttpDelete("{defectId}")]
         public async Task<IActionResult> DeleteDefect(Guid projectId, Guid defectId)
         {
-            var defect = await _db.Defects.FirstOrDefaultAsync(d => d.Id == defectId && _db.TestCases.Any(tc => tc.Id == d.TestCaseId && tc.ProjectId == projectId));
+            var testCaseIds = await _db.TestCases
+                .Where(tc => tc.ProjectId == projectId)
+                .Select(tc => tc.Id)
+                .ToListAsync();
+
+            var defect = await _db.Defects.FirstOrDefaultAsync(d => d.Id == defectId && testCaseIds.Contains(d.TestCaseId));
             if (defect == null)
                 return NotFound(new { error = new { message = "Defect not found", code = "NOT_FOUND" }, status = 404 });
 
