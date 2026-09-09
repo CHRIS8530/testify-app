@@ -188,3 +188,9 @@ xUnit docs, TestContainers docs (will consult during testing phase)
 
 **Last updated:** [Today's date: 09/03/2026]
 **Next review:** Before we start M1 (Foundations phase)
+## 6. Docker Compose for Local Development (M1)
+- **Decision:** Use Docker Compose with 3 services (API, Frontend, Postgres) for local development
+- **Why:** Consistency across dev/demo, no cloud costs, full control, mirrors production setup
+- **What was asked:** M1 requires working local environment
+- **What we built:** Multi-stage API Dockerfile, Node/Vite frontend Dockerfile, docker-compose.yml with health checks, service dependencies, networking, volume persistence
+- **Status:** Configured and committed; docker testing deferred due to Docker Desktop startup issues but structure validated
