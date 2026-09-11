@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Testify.Api.Data;
+using Testify.Api.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -53,6 +54,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors("AllowAll");
+app.UseMiddleware<AuthenticationMiddleware>();
+app.UseMiddleware<SecurityHeadersMiddleware>();
 
 // Health check endpoint - works with both Npgsql and InMemory
 app.MapGet("/api/v1/health", async (TestifyDbContext db) =>
