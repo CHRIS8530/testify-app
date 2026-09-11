@@ -33,7 +33,7 @@ public class MockEmailService : IEmailService
         await Task.CompletedTask;
     }
 
-    public async Task SendInvitationEmailAsync(string email, string projectName, string role, string inviteToken)
+        public async Task SendInvitationEmailAsync(string email, string projectName, string role, string inviteToken)
     {
         var acceptUrl = $"http://localhost:5173/accept-invite?token={inviteToken}";
         
@@ -46,7 +46,7 @@ public class MockEmailService : IEmailService
             "Accept and join:\n" +
             "{AcceptUrl}\n\n" +
             "This link expires in 7 days.",
-            email, projectName, email, role, acceptUrl
+            email, projectName, email, projectName, role, acceptUrl
         );
 
         await Task.CompletedTask;
