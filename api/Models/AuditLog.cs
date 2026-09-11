@@ -11,7 +11,7 @@ public class AuditLog
     public string? ResourceType { get; set; }
     public Guid? ResourceId { get; set; }
     public Guid? ProjectId { get; set; }
-    public Dictionary<string, object>? Details { get; set; }
+    public string? Details { get; set; }
     public string? IpAddress { get; set; }
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 
