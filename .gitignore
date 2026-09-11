@@ -1,0 +1,21 @@
+# Build artifacts
+bin/
+obj/
+*.dll
+*.pdb
+*.exe
+
+# Visual Studio
+.vs/
+.vscode/
+*.user
+*.suo
+
+# IDE
+.idea/
+
+# Environment
+.env
+
+# Dependencies
+node_modules/
