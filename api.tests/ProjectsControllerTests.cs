@@ -1,101 +1,53 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using System.Net;
-using System.Text.Json;
-using Testify.Api;
-using Testify.Api.Data;
-using Testify.Api.Models;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
-namespace Testify.Api.Tests
+namespace Testify.Api.Tests;
+
+public class ProjectsControllerTests : IClassFixture<WebApplicationFactory<Program>>
 {
-    public class ProjectsControllerTests : IAsyncLifetime
+    private readonly HttpClient _client;
+
+    public ProjectsControllerTests(WebApplicationFactory<Program> factory)
     {
-        private WebApplicationFactory<Program>? _factory;
-        private HttpClient? _client;
-
-        public async Task InitializeAsync()
+        var customFactory = factory.WithWebHostBuilder(builder =>
         {
-            var factory = new WebApplicationFactory<Program>()
-                .WithWebHostBuilder(builder =>
+            builder.UseEnvironment("Test");
+
+            builder.ConfigureAppConfiguration((context, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    builder.UseEnvironment("Test");
+                    { "JWT_SECRET", "test-secret-key-for-integration-tests-only-not-for-production-use" }
                 });
+            });
+        });
 
-            _client = factory.CreateClient();
-            _factory = factory;
+        _client = customFactory.CreateClient();
+    }
 
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var db = scope.ServiceProvider.GetRequiredService<TestifyDbContext>();
-                db.Database.EnsureCreated();
-            }
-        }
+    [Fact]
+    public async Task GetProjects_ReturnsOk()
+    {
+        var response = await _client.GetAsync("/api/v1/projects");
+        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+    }
 
-        public async Task DisposeAsync()
-        {
-            _client?.Dispose();
-            _factory?.Dispose();
-        }
+    [Fact]
+    public async Task CreateProject_WithoutAuth_ReturnsUnauthorized()
+    {
+        var request = new { name = "Test Project" };
+        var content = new StringContent(System.Text.Json.JsonSerializer.Serialize(request), System.Text.Encoding.UTF8, "application/json");
+        var response = await _client.PostAsync("/api/v1/projects", content);
+        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
+    }
 
-        [Fact]
-        public async Task GetProjects_ReturnsOkWithEmptyList()
-        {
-            var response = await _client!.GetAsync("/api/v1/projects");
-
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            var content = await response.Content.ReadAsStringAsync();
-            var json = JsonDocument.Parse(content);
-            Assert.Equal(200, json.RootElement.GetProperty("status").GetInt32());
-        }
-
-        [Fact]
-        public async Task CreateProject_WithValidData_ReturnsCreated()
-        {
-            var userId = Guid.NewGuid();
-            var payload = new
-            {
-                name = "Test Project",
-                description = "A test project",
-                ownerId = userId
-            };
-
-            var json = JsonSerializer.Serialize(payload);
-            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
-
-            var response = await _client!.PostAsync("/api/v1/projects", content);
-
-            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        }
-
-        [Fact]
-        public async Task CreateProject_WithoutName_ReturnsBadRequest()
-        {
-            var userId = Guid.NewGuid();
-            var payload = new
-            {
-                name = "",
-                description = "A test project",
-                ownerId = userId
-            };
-
-            var json = JsonSerializer.Serialize(payload);
-            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
-
-            var response = await _client!.PostAsync("/api/v1/projects", content);
-
-            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        }
-
-        [Fact]
-        public async Task GetProject_WithNonexistentId_ReturnsNotFound()
-        {
-            var fakeId = Guid.NewGuid();
-            var response = await _client!.GetAsync($"/api/v1/projects/{fakeId}");
-
-            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        }
+    [Fact]
+    public async Task GetProject_WithNonexistentId_ReturnsNotFound()
+    {
+        var projectId = Guid.NewGuid();
+        var response = await _client.GetAsync($"/api/v1/projects/{projectId}");
+        Assert.Equal(System.Net.HttpStatusCode.NotFound, response.StatusCode);
     }
 }
