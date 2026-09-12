@@ -211,12 +211,81 @@ RESOLVED - ProjectMembersController complete, owner-only authorization enforced,
 
 ---
 
+### Decision 17: Integration Test Setup — Blocker (Unresolved)
+
+**Context:**
+M3 requires integration tests to verify auth endpoints work. Attempted to build test suite using xUnit + WebApplicationFactory + InMemory database.
+
+**What I asked the AI:**
+Build ProjectsControllerTests with WebApplicationFactory, replace PostgreSQL DbContext with InMemory for isolation.
+
+**What it gave me:**
+Complete test class with factory setup, service registration, four test methods.
+
+**Attempts and failures:**
+
+1. **Attempt 1: Remove Descriptors by FirstOrDefault**
+```csharp
+   var descriptorPg = services.FirstOrDefault(d => d.ServiceType == typeof(DbContextOptions<TestifyDbContext>));
+   if (descriptorPg != null) services.Remove(descriptorPg);
+```
+   Result: `InvalidOperationException: Services for database providers 'Npgsql.EntityFrameworkCore.PostgreSQL', 'Microsoft.EntityFrameworkCore.InMemory' have been registered. Only a single database provider can be registered.`
+   Issue: Removing DbContextOptions isn't enough; the provider itself stays registered by Program.cs
+
+2. **Attempt 2: Set Test Environment**
+```csharp
+   builder.UseEnvironment("Test");
+```
+   Result: `error CS1061: 'IWebHostBuilder' does not contain a definition for 'UseEnvironment'`
+   Issue: IWebHostBuilder doesn't have UseEnvironment method in .NET 10
+
+3. **Attempt 3: RemoveAll Services**
+```csharp
+   services.RemoveAll(typeof(DbContextOptions<TestifyDbContext>));
+   services.RemoveAll(typeof(TestifyDbContext));
+```
+   Result: Same provider conflict error as Attempt 1
+   Issue: Removing the service registrations doesn't prevent Program.cs from registering both providers
+
+4. **Additional Issues Encountered:**
+   - Duplicate ProjectsControllerTests.cs files (one in api.tests/, one in api.tests/api.tests/)
+   - Syntax errors (missing closing braces)
+   - EF Core version conflict: Microsoft.EntityFrameworkCore.Relational 10.0.4 vs 10.0.11
+
+**Root cause:**
+WebApplicationFactory loads Program.cs which registers PostgreSQL. Then test tries to override with InMemory. Both providers stay registered simultaneously, which .NET forbids. Simply removing service registrations doesn't un-register the provider that was already loaded.
+
+**Options going forward:**
+
+Option A: Refactor Program.cs to check environment BEFORE registering ANY DbContext
+- Pros: Clean, proper solution
+- Cons: Adds complexity to production code just for tests
+- Effort: Medium (need to restructure DbContext registration logic)
+
+Option B: Use actual PostgreSQL in Docker for integration tests
+- Pros: Tests real database, closer to production
+- Cons: Requires Docker, slower tests
+- Effort: High (Docker setup, test database seeding)
+
+Option C: Defer integration tests, release with manual testing
+- Pros: Fastest path to release
+- Cons: No automated test suite yet
+- Effort: Low (skip for now, add in M4)
+
+**Recommendation for M3 completion:**
+Option C. Auth endpoints are fully built and working (controllers, services, middleware all integrate). Authorization checks and audit logging are in place. Manual testing via curl/Postman confirms functionality. Integration test suite can be added in M4 after resolving the provider registration architecture question.
+
+**Status:**
+BLOCKED — requires architectural decision. Recommend Option C (manual testing for MVP).
+
+---
+
 # M3 Decisions (To be filled as we build)
 
 *Decisions will be added here as authentication, authorization, audit logging, and security features are implemented.*
 
 ---
 
-**Last updated:** 2026-09-10
+**Last updated:** 2026-09-12
 **Status:** M3 in progress. Decomposition complete, implementation starting.
 **Next:** Begin 15-step implementation order for authentication and authorization.
