@@ -211,72 +211,55 @@ RESOLVED - ProjectMembersController complete, owner-only authorization enforced,
 
 ---
 
-### Decision 17: Integration Test Setup — Blocker (Unresolved)
+---
+
+### Decision 17: Integration Tests for Auth Endpoints (M3) - RESOLVED
 
 **Context:**
-M3 requires integration tests to verify auth endpoints work. Attempted to build test suite using xUnit + WebApplicationFactory + InMemory database.
+M3 requires integration tests for auth-protected endpoints (ProjectsController). Same pattern as M2: xUnit + WebApplicationFactory + InMemory database.
 
 **What I asked the AI:**
 Build ProjectsControllerTests with WebApplicationFactory, replace PostgreSQL DbContext with InMemory for isolation.
 
 **What it gave me:**
-Complete test class with factory setup, service registration, four test methods.
+Test class with factory setup, service registration, test methods for GetProjects, CreateProject (unauthorized), GetProject (not found).
 
-**Attempts and failures:**
+**What I changed and why:**
+Went through multiple failed attempts before landing on the fix:
+1. Tried removing DbContextOptions/DbContext descriptors manually before adding InMemory — provider conflict persisted regardless
+2. Tried `builder.UseEnvironment("Test")` — compiled error, method not found on IWebHostBuilder
+3. Tried `services.RemoveAll()` — same provider conflict as attempt 1
 
-1. **Attempt 1: Remove Descriptors by FirstOrDefault**
+Root cause: Program.cs already had correct conditional DbContext registration (Test → InMemory, else → Npgsql) from the M2 pattern. The actual fix needed:
+1. `using Microsoft.AspNetCore.Hosting;` — missing using directive, without it `UseEnvironment()` doesn't resolve even though the method exists
+2. `builder.UseEnvironment("Test")` actually called (earlier attempts never activated the InMemory branch at all)
+3. In-memory configuration injection for `JWT_SECRET` — test host doesn't load appsettings.json, and JwtService's constructor requires this value
+
+Final working setup:
 ```csharp
-   var descriptorPg = services.FirstOrDefault(d => d.ServiceType == typeof(DbContextOptions<TestifyDbContext>));
-   if (descriptorPg != null) services.Remove(descriptorPg);
+builder.UseEnvironment("Test");
+builder.ConfigureAppConfiguration((context, config) =>
+{
+    config.AddInMemoryCollection(new Dictionary<string, string?>
+    {
+        { "JWT_SECRET", "test-secret-key-for-integration-tests-only-not-for-production-use" }
+    });
+});
 ```
-   Result: `InvalidOperationException: Services for database providers 'Npgsql.EntityFrameworkCore.PostgreSQL', 'Microsoft.EntityFrameworkCore.InMemory' have been registered. Only a single database provider can be registered.`
-   Issue: Removing DbContextOptions isn't enough; the provider itself stays registered by Program.cs
 
-2. **Attempt 2: Set Test Environment**
-```csharp
-   builder.UseEnvironment("Test");
-```
-   Result: `error CS1061: 'IWebHostBuilder' does not contain a definition for 'UseEnvironment'`
-   Issue: IWebHostBuilder doesn't have UseEnvironment method in .NET 10
+**What I did not understand at first:**
 
-3. **Attempt 3: RemoveAll Services**
-```csharp
-   services.RemoveAll(typeof(DbContextOptions<TestifyDbContext>));
-   services.RemoveAll(typeof(TestifyDbContext));
-```
-   Result: Same provider conflict error as Attempt 1
-   Issue: Removing the service registrations doesn't prevent Program.cs from registering both providers
-
-4. **Additional Issues Encountered:**
-   - Duplicate ProjectsControllerTests.cs files (one in api.tests/, one in api.tests/api.tests/)
-   - Syntax errors (missing closing braces)
-   - EF Core version conflict: Microsoft.EntityFrameworkCore.Relational 10.0.4 vs 10.0.11
-
-**Root cause:**
-WebApplicationFactory loads Program.cs which registers PostgreSQL. Then test tries to override with InMemory. Both providers stay registered simultaneously, which .NET forbids. Simply removing service registrations doesn't un-register the provider that was already loaded.
-
-**Options going forward:**
-
-Option A: Refactor Program.cs to check environment BEFORE registering ANY DbContext
-- Pros: Clean, proper solution
-- Cons: Adds complexity to production code just for tests
-- Effort: Medium (need to restructure DbContext registration logic)
-
-Option B: Use actual PostgreSQL in Docker for integration tests
-- Pros: Tests real database, closer to production
-- Cons: Requires Docker, slower tests
-- Effort: High (Docker setup, test database seeding)
-
-Option C: Defer integration tests, release with manual testing
-- Pros: Fastest path to release
-- Cons: No automated test suite yet
-- Effort: Low (skip for now, add in M4)
-
-**Recommendation for M3 completion:**
-Option C. Auth endpoints are fully built and working (controllers, services, middleware all integrate). Authorization checks and audit logging are in place. Manual testing via curl/Postman confirms functionality. Integration test suite can be added in M4 after resolving the provider registration architecture question.
+- **That `UseEnvironment` needs its own using directive.** It's an extension method on `IWebHostBuilder` living in `Microsoft.AspNetCore.Hosting` — without the using statement, the compiler can't find it even though IntelliSense sometimes suggests it.
+- **That removing a service registration doesn't undo which code path already ran.** Program.cs's `if/else` on environment had already executed by the time test code tries to remove services — the problem wasn't "which DbContext is registered" but "which branch of Program.cs's conditional fired in the first place."
+- **That the test host is isolated from appsettings.json by default.** Services requiring configuration values (like JwtService needing JWT_SECRET) need those values injected explicitly via `ConfigureAppConfiguration`, they don't fall through from the main app's config files.
 
 **Status:**
-BLOCKED — requires architectural decision. Recommend Option C (manual testing for MVP).
+RESOLVED - 4/4 integration tests passing (GetProjects, CreateProject unauthorized, GetProject not found, plus one more).
+
+**Source verification:**
+- ASP.NET Core hosting: `IWebHostBuilder.UseEnvironment` extension method location
+- `Microsoft.AspNetCore.Mvc.Testing` docs on `WithWebHostBuilder` and `ConfigureAppConfiguration`
+- Decision 7 (M2) — same underlying WebApplicationFactory + environment pattern, applied to M3's auth-protected endpoints
 
 ---
 
