@@ -18,10 +18,20 @@ builder.Services.AddCors(options =>
     });
 });
 
-builder.Services.AddDbContext<TestifyDbContext>(options =>
+if (builder.Environment.IsEnvironment("Test"))
 {
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"));
-});
+    builder.Services.AddDbContext<TestifyDbContext>(options =>
+    {
+        options.UseInMemoryDatabase("TestDB");
+    });
+}
+else
+{
+    builder.Services.AddDbContext<TestifyDbContext>(options =>
+    {
+        options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"));
+    });
+}
 
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IPasswordService, PasswordService>();
@@ -40,7 +50,9 @@ app.MapControllers();
 
 if (!app.Environment.IsEnvironment("Test"))
 {
-    app.Services.GetRequiredService<TestifyDbContext>().Database.Migrate();
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<TestifyDbContext>();
+    db.Database.Migrate();
 }
 
 app.Run();
