@@ -259,7 +259,7 @@ RESOLVED - 4/4 integration tests passing (GetProjects, CreateProject unauthorize
 **Source verification:**
 - ASP.NET Core hosting: `IWebHostBuilder.UseEnvironment` extension method location
 - `Microsoft.AspNetCore.Mvc.Testing` docs on `WithWebHostBuilder` and `ConfigureAppConfiguration`
-- Decision 7 (M2) — same underlying WebApplicationFactory + environment pattern, applied to M3's auth-protected endpoints
+- Decision 7 (M2) — related but distinct issue in the same WebApplicationFactory + environment-switching pattern; M2's blocker was environment/DI validation, M3's was a missing using directive and test-host configuration injection
 
 ---
 
