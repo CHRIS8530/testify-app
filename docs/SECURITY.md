@@ -94,6 +94,9 @@ cd api.tests
 dotnet test
 ```
 
-## Contact
+## Security Disclosure
 
-Security questions or vulnerabilities: innasol.official@gmail.com
+For security vulnerabilities, please open a private security advisory on GitHub:
+https://github.com/CHRIS8530/testify-app/security/advisories
+
+Do not open public issues for security findings. All vulnerabilities reported via GitHub security advisories will be addressed promptly and confidentially.
