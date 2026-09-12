@@ -261,6 +261,9 @@ RESOLVED - 4/4 integration tests passing (GetProjects, CreateProject unauthorize
 - `Microsoft.AspNetCore.Mvc.Testing` docs on `WithWebHostBuilder` and `ConfigureAppConfiguration`
 - Decision 7 (M2) — related but distinct issue in the same WebApplicationFactory + environment-switching pattern; M2's blocker was environment/DI validation, M3's was a missing using directive and test-host configuration injection
 
+**Reflection:**
+Related to Decision 7 (M2), which used the same WebApplicationFactory + environment-switching pattern. In hindsight, checking whether the environment switch was actually firing (via a quick log line) before assuming a database provider conflict would have narrowed this down faster. Noted for next time: verify environment activation early when WebApplicationFactory tests misbehave, since it's a common failure point in this pattern.
+
 ---
 
 # M3 Decisions (To be filled as we build)
