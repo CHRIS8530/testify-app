@@ -15,16 +15,30 @@ namespace Testify.Api.Controllers
             _db = db;
         }
 
+        private Guid GetUserIdFromToken()
+        {
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            return userIdClaim != null ? Guid.Parse(userIdClaim) : Guid.Empty;
+        }
+
         [HttpGet]
         public async Task<IActionResult> GetDashboard(Guid projectId)
         {
+            var userId = GetUserIdFromToken();
+            if (userId == Guid.Empty)
+                return Unauthorized(new { error = new { message = "Unauthorized", code = "UNAUTHORIZED" }, status = 401 });
+
             var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId);
             if (project == null)
                 return NotFound(new { error = new { message = "Project not found", code = "NOT_FOUND" }, status = 404 });
 
+            var member = await _db.ProjectMembers.FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.UserId == userId);
+            if (member == null && project.OwnerId != userId)
+                return Forbid();
+
             var totalCases = await _db.TestCases.CountAsync(tc => tc.ProjectId == projectId);
             var totalRuns = await _db.TestRuns.CountAsync(tr => tr.ProjectId == projectId);
-            
+
             var runs = await _db.TestRuns
                 .Where(tr => tr.ProjectId == projectId)
                 .Include(tr => tr.Results)
@@ -63,22 +77,18 @@ namespace Testify.Api.Controllers
 
             return Ok(new
             {
-                data = new
-                {
-                    total_cases = totalCases,
-                    total_runs = totalRuns,
-                    pass_rate = passRate,
-                    total_results = totalResults.Count,
-                    passed = passedResults,
-                    failed = totalResults.Count(r => r.Result == "Fail"),
-                    blocked = totalResults.Count(r => r.Result == "Blocked"),
-                    not_run = totalResults.Count(r => r.Result == "Not Run"),
-                    open_defects = openDefects.Count,
-                    defects_by_severity = defectsBySeverity,
-                    defects_by_status = defectsByStatus,
-                    recent_defects = recentDefects
-                },
-                status = 200
+                total_cases = totalCases,
+                total_runs = totalRuns,
+                pass_rate = passRate,
+                total_results = totalResults.Count,
+                passed = passedResults,
+                failed = totalResults.Count(r => r.Result == "Fail"),
+                blocked = totalResults.Count(r => r.Result == "Blocked"),
+                not_run = totalResults.Count(r => r.Result == "Not Run"),
+                open_defects = openDefects.Count,
+                defects_by_severity = defectsBySeverity,
+                defects_by_status = defectsByStatus,
+                recent_defects = recentDefects
             });
         }
     }
