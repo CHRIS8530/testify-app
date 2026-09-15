@@ -10,11 +10,12 @@ builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins("http://localhost:5173")
             .AllowAnyMethod()
-            .AllowAnyHeader();
+            .AllowAnyHeader()
+            .AllowCredentials();
     });
 });
 
@@ -41,7 +42,7 @@ builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 var app = builder.Build();
 
 app.UseHttpsRedirection();
-app.UseCors("AllowAll");
+app.UseCors("AllowFrontend");
 app.UseMiddleware<AuthenticationMiddleware>();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseAuthorization();

@@ -27,7 +27,7 @@ public class TestifyDbContext : DbContext
         // Users table constraints
         modelBuilder.Entity<User>()
             .HasKey(u => u.Id);
-        
+
         modelBuilder.Entity<User>()
             .HasIndex(u => u.Email)
             .IsUnique();
