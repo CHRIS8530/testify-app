@@ -18,7 +18,7 @@ public class MockEmailService : IEmailService
     public async Task SendPasswordResetEmailAsync(string email, string username, string resetToken)
     {
         var resetUrl = $"http://localhost:5173/reset-password?token={resetToken}";
-        
+
         _logger.LogInformation(
             "MOCK EMAIL - Password Reset\n" +
             "To: {Email}\n" +
@@ -33,10 +33,10 @@ public class MockEmailService : IEmailService
         await Task.CompletedTask;
     }
 
-        public async Task SendInvitationEmailAsync(string email, string projectName, string role, string inviteToken)
+    public async Task SendInvitationEmailAsync(string email, string projectName, string role, string inviteToken)
     {
         var acceptUrl = $"http://localhost:5173/accept-invite?token={inviteToken}";
-        
+
         _logger.LogInformation(
             "MOCK EMAIL - Project Invitation\n" +
             "To: {Email}\n" +
