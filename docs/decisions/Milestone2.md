@@ -119,6 +119,38 @@ RESOLVED — TestRunResultsController built and tested (build succeeds), Dashboa
 
 ---
 
+### Decision 19: First PR Workflow — CI Was Broken Since Day 1, Found and Fixed
+
+**Context:**
+After adopting the PR-based workflow per the brief's requirement (section 3.6), the very first PR (CORS fix) exposed that CI had actually been failing since it was originally set up (Sep 9, CI #1) — every single run before this PR was red. Direct-to-main commits meant nobody was watching CI status, so this went unnoticed for days.
+
+**What I asked the AI:**
+Investigate why the "Lint TypeScript frontend" CI step was failing, using an analysis that had already been generated (whitespace formatting errors + an oxlint native binding error) as a starting point.
+
+**What it gave me:**
+A methodical verification process rather than blindly applying the pasted fix: checked the actual CI logs directly on GitHub, ran `dotnet format --verify-no-changes` locally to confirm the whitespace claims were real (they were), then traced the oxlint failure to its actual root cause step by step.
+
+**What I changed and why:**
+1. Ran `dotnet format` to fix real whitespace issues in `EmailService.cs` and `TestifyDbContext.cs` — confirmed via `--verify-no-changes` before and after.
+2. Applied the suggested fix of clearing `node_modules`/`package-lock.json` before `npm install` in CI — this did NOT fix the oxlint error, contrary to the original analysis's confidence.
+3. Diagnosed the real cause myself: CI was pinned to Node 18, but local dev machine runs Node 22. Oxlint's native binding resolution for a recent version (`^1.79.0`) failed specifically on the older Node version in CI. Bumped CI's `node-version` from `'18'` to `'22'` to match local — this fixed it. CI went green for the first time.
+4. Found and removed a stray duplicate `Controllers/TestRunResultsController.cs` sitting at the repo root (outside `api/Controllers/`) — leftover from an earlier `code` command run from the wrong directory. Verified it was byte-identical to the real file via `Compare-Object` before deleting.
+
+**What I did not understand at first:**
+- That a step in a CI workflow (`dotnet format --verify-no-changes --verbosity diagnostic || true`) with `|| true` appended means the step always "succeeds" regardless of the actual command's exit code — so the whitespace errors were never actually what was blocking CI, even though fixing them was still good practice.
+- That clearing `node_modules`/`package-lock.json` is a real, documented fix for npm's optional-dependency bug (npm/cli#4828) — but only when the underlying package version actually has bindings for the target platform/Node version. It's not a universal fix; you still have to verify the environment matches.
+- That accepting a plausible-sounding analysis at face value (even when parts of it are correct) is risky — the whitespace diagnosis was accurate, but the "clear and reinstall" fix for oxlint was incomplete on its own. Verifying each claim against actual CI logs, before and after each change, caught this.
+- That stray duplicate files can silently accumulate from directory-navigation mistakes during rapid terminal work, and are worth checking for with `git status` periodically, not just when something breaks.
+
+**Status:**
+RESOLVED — CI passes (green) for the first time since it was set up. First PR merged successfully via GitHub's UI with branch protection enforced (require PR before merge; approvals not required, given solo/limited-availability collaborator setup with Eric).
+
+**Source verification:**
+- npm/cli issue #4828 (referenced directly in the oxlint error message) — confirms this is a known, documented npm bug, not something unique to this project
+- Direct comparison of local `node --version` (v22.15.0) against CI runner's reported `Node.js v18.20.8` in the failure logs — confirmed via primary evidence (actual log output), not assumption
+
+---
+
 **Last updated:** 2026-09-13
 **Status:** Milestone 2 complete. 5 integration tests passing (5/5). 4 production bugs fixed. Ready for Milestone 3.
 **Next:** Start Milestone 3 (Authentication, Authorization, Audit Logging)
