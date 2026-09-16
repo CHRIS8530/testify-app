@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
-import { User, AuthResponse } from '../types';
+import type { User, AuthResponse } from '../types/index';
 
 export interface AuthContextType {
   accessToken: string | null;
