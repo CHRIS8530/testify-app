@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, AuthContext } from './context/AuthContext';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { ProjectListPage } from './pages/ProjectListPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const auth = React.useContext(AuthContext);
@@ -17,7 +18,8 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
-      <Route path="/projects" element={<ProtectedRoute><div style={{ padding: '2rem', textAlign: 'center' }}>Projects page coming soon</div></ProtectedRoute>} />
+      <Route path="/projects" element={<ProtectedRoute><ProjectListPage /></ProtectedRoute>} />
+      <Route path="/projects/:id" element={<ProtectedRoute><div style={{ padding: '2rem', textAlign: 'center' }}>Project detail page coming soon</div></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/login" />} />
     </Routes>
   );
