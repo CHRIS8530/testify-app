@@ -37,4 +37,59 @@ Manual testing in browser: both login and register pages load and render correct
 
 **Commit:** 955d955 (feat/phase-1-auth PR merged to main)
 
+
+---
+
+### Decision 21: Phase 2 Projects — ProjectListPage and useApi Hook
+
+**Context:**
+Built ProjectListPage to list all projects from API. Created useApi hook as centralized fetch wrapper handling Bearer token auth, credentials, and error handling.
+
+**What I asked:**
+Build useApi hook (token auth wrapper) and ProjectListPage (fetches projects, grid layout, click to detail page).
+
+**What it gave me:**
+useApi hook with apiCall function, ProjectListPage with loading/error/empty states, grid layout, navigation.
+
+**What I changed:**
+Implemented as provided. Wired directly to API at http://localhost:5000.
+
+**What I did not understand at first:**
+None — this phase was straightforward.
+
+**Status:**
+RESOLVED — ProjectListPage fully functional, fetches from API, routes to detail page.
+
+**Commit:** f161657
+
+---
+
+### Decision 22: Phase 3 Project Detail — ProjectDetailPage with Tab Navigation
+
+**Context:**
+Built ProjectDetailPage with tab navigation (TestCases, TestRuns, Defects, Dashboard). Created TabNav component and 4 tab skeleton components.
+
+**What I asked:**
+Build ProjectDetailPage, TabNav component, and 4 placeholder tab components. Wire detail page to API.
+
+**What it gave me:**
+ProjectDetailPage fetching single project from API, TabNav with active tab styling, 4 tab skeletons ready for content, back button to projects list.
+
+**What I changed:**
+Implemented as provided.
+
+**What I did not understand at first:**
+None — tab pattern is standard.
+
+**Status:**
+RESOLVED — ProjectDetailPage fully functional, fetches from API, tabs switch on click. Ready for Phase 4 (fill in tab content).
+
+**Commit:** 0bdb39c
+
+---
+
+**Last updated:** 2026-09-17
+**Status:** M4 Phase 3 complete. Phase 1 (Auth), Phase 2 (Projects list), Phase 3 (Project detail with tabs) built and merged. Phases 4-5 in progress.
+**Next:** Phase 4 (Forms: TestCaseEditor, TestRunExecutor, CreateTestRunModal).
+
 ---
