@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
-import { Project } from '../types';
+import type { Project } from '../types/index';
 import { TabNav } from '../components/TabNav';
 import { TestCasesTab } from './tabs/TestCasesTab';
 import { TestRunsTab } from './tabs/TestRunsTab';
