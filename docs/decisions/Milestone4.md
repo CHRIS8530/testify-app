@@ -88,7 +88,28 @@ RESOLVED — ProjectDetailPage fully functional, fetches from API, tabs switch o
 
 ---
 
-**Last updated:** 2026-09-17
+### Decision 23: Phase 4 Forms — TestCaseEditor Component Template
+
+**Context:**
+Started Phase 4 (Forms). Built TestCaseEditor as template component showing form pattern for all remaining forms (TestRunExecutor, CreateTestRunModal).
+
+**What I asked:**
+Build TestCaseEditor form component (create/edit test cases, fetch if caseId exists, POST/PATCH).
+
+**What it gave me:**
+Complete form with fields (title, preconditions, steps, expectedResult, priority), error/loading states, save/cancel buttons.
+
+**What I changed:**
+None — implemented as provided.
+
+**Status:**
+IN PROGRESS — TestCaseEditor built. Remaining: fill tab content (TestCasesTab with editor + list), TestRunExecutor, CreateTestRunModal, E2E tests.
+
+**Commit:** d1cbcf8
+
+---
+
+**Last updated:** 2026-09-19
 **Status:** M4 Phase 3 complete. Phase 1 (Auth), Phase 2 (Projects list), Phase 3 (Project detail with tabs) built and merged. Phases 4-5 in progress.
 **Next:** Phase 4 (Forms: TestCaseEditor, TestRunExecutor, CreateTestRunModal).
 
