@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
-import { Project } from '../types';
+import type { Project } from '../types/index';
 
 export function ProjectListPage() {
   const [projects, setProjects] = useState<Project[]>([]);
