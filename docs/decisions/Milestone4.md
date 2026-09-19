@@ -109,6 +109,27 @@ IN PROGRESS — TestCaseEditor built. Remaining: fill tab content (TestCasesTab 
 
 ---
 
+### Decision 24: Phase 4 Forms Complete — TestCasesTab and TestCaseEditor
+
+**Context:**
+Completed Phase 4 forms. Built full TestCasesTab with list, add/edit/delete buttons. TestCaseEditor form component handles both create and edit flows.
+
+**What I asked:**
+Implement TestCasesTab (list + CRUD buttons), fill remaining placeholder tabs, fix TypeScript errors.
+
+**What it gave me:**
+TestCasesTab with useEffect fetch, TestCaseEditor integration, table display with actions, error/loading states.
+
+**What I changed:**
+Fixed TypeScript errors: type-only imports for Project interface, removed unused React imports, prefixed unused params with underscore.
+
+**Status:**
+RESOLVED — Phase 4 forms complete. TestCasesTab fully functional (pending API connection). Remaining tabs (TestRunsTab, DefectsTab, DashboardTab) filled with placeholders ready for content.
+
+**Commit:** be6bc5e
+
+---
+
 **Last updated:** 2026-09-19
 **Status:** M4 Phase 3 complete. Phase 1 (Auth), Phase 2 (Projects list), Phase 3 (Project detail with tabs) built and merged. Phases 4-5 in progress.
 **Next:** Phase 4 (Forms: TestCaseEditor, TestRunExecutor, CreateTestRunModal).
