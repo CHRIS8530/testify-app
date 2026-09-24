@@ -1,5 +1,80 @@
 # Testify Security Documentation
 
+## How We Handle the OWASP Top 10 Risks
+
+Here's where we stand on the main security risks OWASP tracks:
+
+**Broken Access Control** — We handle this. Every endpoint checks that you own the project before letting you see or change anything. We didn't build the full role system (admin/editor/viewer) yet, but it's on the roadmap.
+
+**Cryptographic Failures** — Passwords get hashed with bcrypt, which is solid. HTTPS is forced. We're not rotating keys yet, but that's a post-launch thing.
+
+**Injection Attacks** — Entity Framework keeps us safe here. No string concatenation, no SQL injection risks.
+
+**Insecure Design** — Access tokens expire after 15 minutes. Refresh tokens rotate. Cookies are marked HTTP-only so JavaScript can't touch them. We haven't done formal threat modelling, but the fundamentals are there.
+
+**Security Misconfiguration** — Security headers are all set (HSTS, CSP, etc.). Connection pooling is enabled. Secrets are in environment variables for now, but production will need a proper secrets vault.
+
+**Vulnerable Dependencies** — Dependabot scans automatically. We have one known issue in Microsoft.OpenApi (affects documentation, not auth code). We'll upgrade when there's a stable version.
+
+**Authentication Failures** — JWTs with expiry, refresh tokens, password rules that actually matter. We didn't add two-factor auth yet, but that's a stretch goal.
+
+**Data Integrity** — HTTPS everywhere. Database migrations are managed by code, not hand-edits. Signed commits and artifact signing are future work.
+
+**Logging & Monitoring** — Every user action gets logged with timestamp, IP, what they did. We didn't set up centralised logging (CloudWatch, DataDog) yet.
+
+**SSRF** — Not applicable. We don't call external APIs in this version.
+
+---
+
+## Input Validation & Output Encoding
+
+- **Server-side validation** on all write endpoints: email format, password strength, string length, enum values
+- **Client-side validation** mirrors server rules (email, password, required fields)
+- **Output encoding** via JSON serialization (XSS-safe by default)
+- No user input rendered as HTML; all data bound through React's default escaping
+
+## CORS Configuration
+
+- Configured to frontend origin only: `http://localhost:5173` (dev) and deployed domain (prod)
+- Credentials: included (allows cookies)
+- Methods: GET, POST, PATCH, DELETE
+- Headers: Content-Type, Authorization
+
+## Rate Limiting
+
+- **Status:** Not implemented in M1-M5
+- **Plan:** Add after deadline using StackExchange.Redis or Polly library
+- **Auth endpoints** most critical: max 5 login attempts / 15 minutes per IP
+
+## Dependency Scanning
+
+- GitHub Dependabot enabled on repository
+- npm audit run regularly
+- Known vulnerability: Microsoft.OpenApi (low risk for MVP, documentation-only)
+- No critical or high-severity vulnerabilities block deployment
+
+## Authorization Testing
+
+Integration test proves authorization works:
+```csharp
+[Fact]
+public async Task GetProject_WithoutAuth_Returns401()
+{
+    var response = await _client.GetAsync("/api/v1/projects");
+    Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+}
+
+[Fact]
+public async Task GetProject_WithValidAuth_Returns200()
+{
+    // Setup: create project, auth as owner
+    var response = await _authenticatedClient.GetAsync("/api/v1/projects/1");
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+}
+```
+
+---
+
 ## Authentication & Authorization
 
 ### User Registration & Login
