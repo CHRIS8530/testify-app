@@ -1,0 +1,17 @@
+.git
+.gitignore
+.github
+.DS_Store
+node_modules
+frontend/node_modules
+frontend/dist
+api/bin
+api/obj
+**/.vscode
+**/.vs
+*.md
+.env
+.env.example
+docker-compose.yml
+.dockerignore
+Dockerfile
