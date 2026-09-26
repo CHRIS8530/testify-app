@@ -10,6 +10,6 @@ WORKDIR /app
 RUN useradd -m appuser && chown -R appuser:appuser /app
 COPY --from=builder /app/out .
 USER appuser
-EXPOSE 5000
-ENV ASPNETCORE_URLS=http://+:5000
+EXPOSE 8080
+ENV ASPNETCORE_URLS=http://+:8080
 CMD ["dotnet", "Testify.Api.dll"]

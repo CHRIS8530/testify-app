@@ -1,7 +1,6 @@
-# Testify: Decision Log - Milestone 1
+# Testify Project — Decision Log
 
-**Milestone:** Days 1-2
-**Status:** Repo created, Docker Compose runs API + database locally, health endpoint responds, first migration applied, CI runs lint on PRs.
+These documents record every significant decision made during the AI-Assisted Engineering Challenge. For each decision: context, what was asked of the AI, what it produced, what was changed and why, and what wasn't understood at first.
 
 ---
 
@@ -71,6 +70,46 @@ Went with Fly.io as recommended. The analysis was specific enough that I felt co
 
 **Source verification:**
 Fly.io pricing page and docs (will review during deployment)
+
+---
+
+### Decision 2A: Fly.io Free Tier Removed
+
+**Date:** September 24, 2026
+
+**Context:** Decision 2 chose Fly.io based on permanent free tier. When preparing for deployment, discovered Fly.io no longer offers permanent free tier to new accounts—they changed their pricing model mid-challenge.
+
+**What I asked the AI:** "Fly.io removed their free tier. What hosting platforms still have genuine free deployment?"
+
+**What it gave me:** Analysis of AWS free tier and Render as alternatives to Fly.io.
+
+**What I changed and why:** Decided to try AWS first, based on prior familiarity with the platform.
+
+**What I did not understand at first:** That payment verification issues could block deployment, even with proper documentation.
+
+**Result:** AWS attempt blocked by payment verification. Pivoted to Render (see Decision 2B).
+
+---
+
+### Decision 2B: AWS Payment Verification Blocker — Pivoted to Render
+
+**Date:** September 24, 2026
+
+**Context:** After Fly.io's free tier removal, attempted AWS free tier as the next platform. Hit payment verification issues that couldn't be resolved quickly.
+
+**Blocker:** AWS kept failing payment card verification during signup. After back-and-forth with support, the issue remained unresolved and was eating time.
+
+**What I asked the AI:** "AWS payment verification is stuck. What's my fallback hosting option that actually has free tier?"
+
+**What it gave me:** Render—genuine free tier for one year, 750 hours/month compute, free PostgreSQL database included, simpler signup process.
+
+**What I changed and why:** Abandoned AWS and switched to Render immediately. It met all technical requirements without the payment friction, and the signup was straightforward.
+
+**What I did not understand at first:** That payment verification can be a real blocker for new accounts, even with correct documentation. Some platforms just have friction that costs time. Render's approach was deliberately simpler.
+
+**Result:** Render PostgreSQL database provisioned successfully on first try. All EF Core migrations applied without issues (after fixing tool version mismatch in Decision 26).
+
+**Lesson:** When free platforms become friction, switch faster. The sunk cost of debugging payment verification isn't worth it if alternatives exist.
 
 ---
 
