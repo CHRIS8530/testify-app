@@ -2,19 +2,26 @@ using Microsoft.EntityFrameworkCore;
 using Testify.Api.Data;
 using Testify.Api.Middleware;
 using Testify.Api.Services;
+using AspNetCoreRateLimit;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddRateLimiter(options =>
+// Rate limiting - ORDER MATTERS
+builder.Services.AddMemoryCache();
+builder.Services.AddInMemoryRateLimiting();
+builder.Services.Configure<IpRateLimitOptions>(options =>
 {
-    options.AddFixedWindowLimiter(policyName: "fixed", configure: options =>
+    options.GeneralRules = new List<RateLimitRule>
     {
-        options.PermitLimit = 100;
-        options.Window = TimeSpan.FromMinutes(1);
-        options.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-        options.QueueLimit = 2;
-    });
+        new RateLimitRule
+        {
+            Endpoint = "*",
+            Period = "1m",
+            Limit = 100
+        }
+    };
 });
+builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -54,10 +61,10 @@ var app = builder.Build();
 
 app.UseHttpsRedirection();
 app.UseCors("AllowFrontend");
+app.UseIpRateLimiting();
 app.UseMiddleware<AuthenticationMiddleware>();
 app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseAuthorization();
-app.UseRateLimiter();
 
 app.MapControllers();
 
