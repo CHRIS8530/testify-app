@@ -15,6 +15,8 @@ public class HealthController : ControllerBase
         _context = context;
     }
 
+    [EnableRateLimiting("fixed")]
+
     [HttpGet]
     public async Task<IActionResult> Get()
     {
