@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Testify.Api.Data;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Testify.Api.Controllers;
 
