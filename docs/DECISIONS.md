@@ -845,6 +845,26 @@ Focus remaining time on finalizing M1-M4 (complete) and documenting deployment p
 
 ---
 
+### Decision 28: Implement Rate Limiting for API Protection
+
+**Date:** September 27, 2026
+
+**Context:** API needed protection against brute force and DoS attacks.
+
+**What I asked the AI:** "How should I rate limit API requests?"
+
+**What it gave me:** Fixed-window rate limiting configuration using .NET 10 built-in middleware. 100 requests per minute per IP.
+
+**What I changed and why:** Used .NET 10's built-in rate limiting middleware. Applied globally to all endpoints (can be disabled selectively with [DisableRateLimiting] on specific endpoints if needed). Chose fixed-window over sliding-window for simplicity.
+
+**What I did not understand at first:** Rate limiting should ideally be by user ID for authenticated endpoints vs by IP for public endpoints. Simple approach: global by IP. This is sufficient for MVP and protects against brute force login attempts.
+
+**Result:** Rate limiting active. 100 requests per minute, 2 queued requests. Protects against basic DoS and brute force attacks.
+
+**Commit:** b3d5fb6
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
 Last updated: September 27, 2026
