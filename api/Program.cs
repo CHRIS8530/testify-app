@@ -46,9 +46,13 @@ if (builder.Environment.IsEnvironment("Test"))
 }
 else
 {
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+        ?? throw new InvalidOperationException(
+            "ConnectionStrings__DefaultConnection is not configured. Set it with 'dotnet user-secrets' locally or as an environment variable.");
+
     builder.Services.AddDbContext<TestifyDbContext>(options =>
     {
-        options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"));
+        options.UseNpgsql(connectionString);
     });
 }
 
