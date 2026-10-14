@@ -865,6 +865,43 @@ Focus remaining time on finalizing M1-M4 (complete) and documenting deployment p
 
 ---
 
+### Decision 29: Committed Database Credential, Rotated and Removed
+
+**Date:** October 14, 2026
+
+**Context:** CODE_REVIEW.md section 0 found the live Render PostgreSQL connection string, password included, in api/appsettings.json. I committed it on 24 September 2026 (commit 25a7143) and it was still on main in a public repository. The review also found .env tracked in git even though it is in .gitignore, and that pressing F5 started the API in Development and connected it to the live database.
+
+**What I asked the AI:** What to do about the leaked credential, in what order, and how to keep connection strings out of the repo while still being able to run locally.
+
+**What it gave me:** An ordered plan: rotate the credential before touching any code, remove the string from appsettings.json, supply it through dotnet user-secrets locally and environment variables elsewhere, make the app fail fast when it is missing, fix the compose file, and untrack .env.
+
+**What I changed and why:**
+1. Deleted the old Render database on 7 October, which killed the leaked password. On 14 October I created a new database (testify-db-2), saved its connection string in user secrets, and ran the API against it so the migrations applied.
+2. Removed the ConnectionStrings block from appsettings.json.
+3. Program.cs now throws a clear error at startup if ConnectionStrings:DefaultConnection is missing. I tested it by removing the secret and confirming the crash.
+4. Local development reads the connection string and JWT secret from dotnet user-secrets.
+5. docker-compose.yml now passes ConnectionStrings__DefaultConnection. The old DATABASE_URL was never read by any code.
+6. Ran git rm --cached .env. .env.example stays as the template.
+
+**How long it was exposed:** 13 days total, from 24 Sep 2026 until 7 Oct 2026. 
+The database was deleted and the password rotated immediately on 7 Oct when I became aware of the issue. 
+The configuration cleanup is in this PR. The git history scrub is still to do. 
+In a production setting, rotation and remediation would have been handled the same day.
+
+**How it got there:** Decision 25 records the connection string being configured in appsettings.json during the Render setup, and lists it under what the AI gave me. I accepted that and committed it forgetting my repository is public.
+
+**What I did not understand at first:**
+- Deleting the line from the file does not remove it from git history. Anyone can still read it from the old commit, so the real fix is making the password stop working. That is why rotation came before any code change.
+- Why pressing F5 hit production. launchSettings.json sets the environment to Development, and Development fell through to the real connection string in appsettings.json.
+- How configuration layers work. appsettings.json loads first, then user secrets (Development only), then environment variables, and later sources win. A double underscore in an environment variable name stands for the colon in a config key, so ConnectionStrings__DefaultConnection becomes ConnectionStrings:DefaultConnection.
+- I had never used dotnet user-secrets. The value lives in my Windows user profile, outside the repo, so git never sees it.
+
+**Result:** RESOLVED for the credential, which no longer works. The old string is still in git history. A history scrub is planned as a separate step after this PR merges.
+
+**Source verification:** Microsoft Learn, "Safe storage of app secrets in development in ASP.NET Core": secrets are stored outside the project tree and only apply in Development. Microsoft Learn, "Configuration in ASP.NET Core": a double underscore is the nested key separator for environment variables.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: September 27, 2026
+Last updated: October 14, 2026

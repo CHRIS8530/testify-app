@@ -24,7 +24,7 @@ services:
       context: ./api
       dockerfile: Dockerfile
     environment:
-      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-testify_local_password}@postgres:5432/testify
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=testify;Username=postgres;Password=${POSTGRES_PASSWORD:-testify_local_password}"
       ASPNETCORE_ENVIRONMENT: Development
       JWT_SECRET: ${JWT_SECRET:-dev_secret_key_change_in_production}
     ports:
