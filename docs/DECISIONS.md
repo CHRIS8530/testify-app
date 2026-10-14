@@ -885,7 +885,7 @@ Focus remaining time on finalizing M1-M4 (complete) and documenting deployment p
 
 **How long it was exposed:** 13 days total, from 24 Sep 2026 until 7 Oct 2026. 
 The database was deleted and the password rotated immediately on 7 Oct when I became aware of the issue. 
-Configuration and history cleanup were completed afterwards as part of full remediation. 
+The configuration cleanup is in this PR. The git history scrub is still to do. 
 In a production setting, rotation and remediation would have been handled the same day.
 
 **How it got there:** Decision 25 records the connection string being configured in appsettings.json during the Render setup, and lists it under what the AI gave me. I accepted that and committed it forgetting my repository is public.
