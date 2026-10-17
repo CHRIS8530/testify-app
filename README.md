@@ -1,4 +1,3 @@
-
 ## API Endpoints
 
 ### Auth
@@ -40,6 +39,32 @@
 ### Dashboard
 - `GET /api/v1/projects/:id/dashboard` — Get project dashboard metrics
 
+## Configuration
+
+The API reads its settings from configuration, so nothing secret is committed to the repo. Two values are needed:
+
+- `ConnectionStrings__DefaultConnection`: the PostgreSQL connection string (Npgsql format)
+- `JWT_SECRET`: the key used to sign access tokens
+
+If the connection string is missing, the API stops at startup and says so.
+
+### Local development (`dotnet run` or F5)
+
+Store both values with user secrets. They live in your user profile, outside the repo, and only load in the Development environment:
+
+```bash
+cd api
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=<host>;Port=5432;Database=<db>;Username=<user>;Password=<password>;SSL Mode=Require"
+dotnet user-secrets set "JWT_SECRET" "<a long random string>"
+```
+### Docker Compose
+
+Optionally copy `.env.example` to `.env`. Compose passes the connection string to the API container and points it at the Postgres container in the compose file. The defaults in `.env.example` are for local use only. Running the whole stack with Compose is still being fixed (see `docs/CODE_REVIEW.md`, item 1.4).
+
+### Deployed (Render)
+
+Set `ConnectionStrings__DefaultConnection` and `JWT_SECRET` as environment variables on the service.
+
 ## Running Tests
 
 ### Backend Unit Tests
@@ -72,9 +97,9 @@ Tests cover:
 Partial setup complete. PostgreSQL database provisioned on Render, connection string configured. EF Core migrations require additional troubleshooting.
 
 ### What's Done
-- Render PostgreSQL database created (`testify-db`)
-- External connection string configured in `api/appsettings.json`
-- Connection tested (network connectivity working)
+- Render PostgreSQL database created (`testify-db-2`)
+- Connection string supplied through configuration and never committed (see Configuration above)
+- Migrations apply automatically when the API starts
 
 ### What's Blocked
 - EF Core 10.0.12 runtime vs 10.0.1 tools version mismatch
@@ -133,4 +158,4 @@ This project was built as part of an AI-Assisted Engineering Challenge. Question
 
 ---
 
-**Last Updated:** September 24, 2026
+**Last Updated:** October 17, 2026

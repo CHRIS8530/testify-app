@@ -865,15 +865,15 @@ Focus remaining time on finalizing M1-M4 (complete) and documenting deployment p
 
 ---
 
-### Decision 29: Committed Database Credential, Rotated and Removed
+### Decision 29: Committed Database Credential, Rotated, Removed and Scrubbed from History
 
-**Date:** October 14, 2026
+**Date:** October 14, 2026 (credential revoked October 7)
 
 **Context:** CODE_REVIEW.md section 0 found the live Render PostgreSQL connection string, password included, in api/appsettings.json. I committed it on 24 September 2026 (commit 25a7143) and it was still on main in a public repository. The review also found .env tracked in git even though it is in .gitignore, and that pressing F5 started the API in Development and connected it to the live database.
 
-**What I asked the AI:** What to do about the leaked credential, in what order, and how to keep connection strings out of the repo while still being able to run locally.
+**What I asked the AI:** What to do about the leaked credential, in what order, and how to keep connection strings out of the repo while still being able to run locally. Later I asked whether a revoked password left in git history actually matters, and how to remove it if it does.
 
-**What it gave me:** An ordered plan: rotate the credential before touching any code, remove the string from appsettings.json, supply it through dotnet user-secrets locally and environment variables elsewhere, make the app fail fast when it is missing, fix the compose file, and untrack .env.
+**What it gave me:** An ordered plan: rotate the credential before touching any code, remove the string from appsettings.json, supply it through dotnet user-secrets locally and environment variables elsewhere, make the app fail fast when it is missing, fix the compose file, and untrack .env. For the history, it first called the scrub required, then agreed when I pushed back that a revoked password in history is harmless, and that the scrub is mostly for the brief's "no secrets in the git history" line and for secret scanners. Eric said to do it, so I did.
 
 **What I changed and why:**
 1. Deleted the old Render database on 7 October, which killed the leaked password. On 14 October I created a new database (testify-db-2), saved its connection string in user secrets, and ran the API against it so the migrations applied.
@@ -882,11 +882,14 @@ Focus remaining time on finalizing M1-M4 (complete) and documenting deployment p
 4. Local development reads the connection string and JWT secret from dotnet user-secrets.
 5. docker-compose.yml now passes ConnectionStrings__DefaultConnection. The old DATABASE_URL was never read by any code.
 6. Ran git rm --cached .env. .env.example stays as the template.
+7. Scrubbed the git history, starting on 15 October and finishing on 16 October. I made a mirror backup of the repo first, then ran git filter-repo --replace-text on a fresh clone to swap the password for a placeholder. I checked the result, force-pushed the rewritten main, and deleted the 32 other remote branches (all already merged), because many of them still pointed at the old commits. Then I cloned the repo again into a clean folder and repeated the checks there.
+8. How I checked it: searching the history for the old password (git log -S) found two commits before the scrub and none after. I saved the log of main before and after (author date, commit date, author name and subject). It was 126 commits both times with no differences, so only the commit hashes changed. The 4 backend tests pass on the fresh clone.
 
-**How long it was exposed:** 13 days total, from 24 Sep 2026 until 7 Oct 2026. 
-The database was deleted and the password rotated immediately on 7 Oct when I became aware of the issue. 
-The configuration cleanup is in this PR. The git history scrub is still to do. 
-In a production setting, rotation and remediation would have been handled the same day.
+**How long it was exposed:** 13 days total, from 24 Sep 2026 until 7 Oct 2026.
+The database was deleted and the password rotated immediately on 7 Oct when I became aware of the issue.
+The configuration cleanup was merged on 14 October and the git history scrub was finished on 16 October.
+In a production setting, rotation and remediation would have been handled immediately.
+The password stopped working on 7 October, so the leftover string in git history was inert from then on. I removed it anyway because the brief says no secrets anywhere in the git history.
 
 **How it got there:** Decision 25 records the connection string being configured in appsettings.json during the Render setup, and lists it under what the AI gave me. I accepted that and committed it forgetting my repository is public.
 
@@ -895,13 +898,24 @@ In a production setting, rotation and remediation would have been handled the sa
 - Why pressing F5 hit production. launchSettings.json sets the environment to Development, and Development fell through to the real connection string in appsettings.json.
 - How configuration layers work. appsettings.json loads first, then user secrets (Development only), then environment variables, and later sources win. A double underscore in an environment variable name stands for the colon in a config key, so ConnectionStrings__DefaultConnection becomes ConnectionStrings:DefaultConnection.
 - I had never used dotnet user-secrets. The value lives in my Windows user profile, outside the repo, so git never sees it.
+- How serious a leaked password is once it has been revoked. After the database was deleted, the password in history opened nothing. The real mistake was leaving a live password in a public repo for 13 days. The scrub afterwards was tidying and checklist work, and I only understood that difference after asking.
+- What a history rewrite changes. Every commit from the password commit onward gets a new hash, but author dates, commit dates, authors and messages stay the same. I did not take that on trust. I compared the log before and after.
+- Why the scrub runs on a fresh clone and not in my working folder. git filter-repo even removes the origin remote by itself, so a rewrite cannot be pushed by accident. I also took a mirror backup first.
+- Why rewriting main was not enough. The old remote branches still pointed at the old commits, so I had to delete them too.
+- That branch protection did not stop me. GitHub printed "Bypassed rule violations", so as the repo owner I can override my own rule. It also showed that the rule was switched on.
+- That GitHub keeps hidden references to old pull requests, and a force-push cannot remove them. Only GitHub Support can purge them. This is why revoking the credential was the real fix, and the scrub is cleanup.
+- Why renaming my project folder failed. Something, most likely VS Code, had it open, so I cloned into a fresh folder (testify-app-clean) instead.
 
-**Result:** RESOLVED for the credential, which no longer works. The old string is still in git history. A history scrub is planned as a separate step after this PR merges.
+**Where the AI cost me time:**
+- It assumed I deleted the old database on 14 October and gave me an exposure figure of 20 days. The real date was 7 October, so the correct figure is 13 days. I only caught it because I knew when I had done it.
+- It called the history scrub required, then backed down when I asked whether it actually mattered. That cost a round of back and forth.
 
-**Source verification:** Microsoft Learn, "Safe storage of app secrets in development in ASP.NET Core": secrets are stored outside the project tree and only apply in Development. Microsoft Learn, "Configuration in ASP.NET Core": a double underscore is the nested key separator for environment variables.
+**Result:** RESOLVED. The credential has been dead since 7 October, the connection string now comes from configuration only, and the password is gone from the history of main on GitHub (checked with git log -S on a fresh clone). One limit: GitHub may still serve the old commits by their exact hash through pull request references until GitHub Support purges them. The old database hostname and username are still visible in old commits, but they point to a database that no longer exists.
+
+**Source verification:** Microsoft Learn, "Safe storage of app secrets in development in ASP.NET Core": secrets are stored outside the project tree and only apply in Development. Microsoft Learn, "Configuration in ASP.NET Core": a double underscore is the nested key separator for environment variables. GitHub Docs, "Removing sensitive data from a repository": a pushed credential should be treated as compromised and revoked first, and old pull request references need GitHub Support to purge. git-filter-repo manual: it preserves commit dates and authors, and removes the origin remote on purpose.
 
 ---
 
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: October 14, 2026
+Last updated: October 16, 2026
