@@ -1,5 +1,6 @@
 import { createContext, useState, useEffect, type ReactNode } from 'react';
 import type { User, AuthResponse } from '../types/index';
+import { API_BASE_URL } from '../config';
 
 export interface AuthContextType {
   accessToken: string | null;
@@ -26,7 +27,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/v1/auth/refresh', {
+        const response = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
           method: 'POST',
           credentials: 'include',
         });
@@ -45,7 +46,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   const login = async (email: string, password: string) => {
-    const response = await fetch('http://localhost:5000/api/v1/auth/login', {
+    const response = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -61,7 +62,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const register = async (email: string, username: string, password: string) => {
-    const response = await fetch('http://localhost:5000/api/v1/auth/register', {
+    const response = await fetch(`${API_BASE_URL}/api/v1/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, username, password }),
@@ -78,7 +79,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const logout = async () => {
     try {
-      await fetch('http://localhost:5000/api/v1/auth/logout', {
+      await fetch(`${API_BASE_URL}/api/v1/auth/logout`, {
         method: 'POST',
         credentials: 'include',
       });

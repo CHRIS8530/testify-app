@@ -1,10 +1,11 @@
 import { useAuth } from './useAuth';
+import { API_BASE_URL } from '../config';
 
 export function useApi() {
   const { accessToken } = useAuth();
 
   const apiCall = async (url: string, options: RequestInit = {}) => {
-    const response = await fetch(`http://localhost:5000${url}`, {
+    const response = await fetch(`${API_BASE_URL}${url}`, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
@@ -16,7 +17,7 @@ export function useApi() {
 
     if (response.status === 401) {
       // Try refresh
-      const refreshResponse = await fetch('http://localhost:5000/api/v1/auth/refresh', {
+      const refreshResponse = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
         method: 'POST',
         credentials: 'include',
       });
