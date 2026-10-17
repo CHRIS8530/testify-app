@@ -142,8 +142,10 @@ All responses include:
 
 ### Environment-Specific Considerations
 - Mock email service logs to console (no real SMTP configured for MVP)
-- JWT secret stored in appsettings.json (in production, use Key Vault or secrets manager)
-- Database connection string hardcoded (in production, use environment variables)
+- The JWT secret and the database connection string come from configuration (user secrets locally, environment variables when deployed). Neither is stored in the repo. The JWT secret in `docker-compose.yml` and `.env.example` is a local development default only. A secrets manager would be the next step for production.
+
+### Past incident: committed database credential
+A live database connection string, password included, was committed to `api/appsettings.json` on 24 September 2026 and was visible in the public repository from then on. The password worked for 13 days, until the database was deleted on 7 October 2026. The string was removed from the code on 14 October 2026 and scrubbed from the git history on 15 and 16 October 2026. GitHub may still serve the old commits by their exact hash until GitHub Support purges them, but the password no longer works. Full write-up: Decision 29 in `docs/DECISIONS.md`.
 
 ## Future Improvements
 
