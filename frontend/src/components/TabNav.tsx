@@ -1,5 +1,3 @@
-import React from 'react';
-
 interface TabNavProps {
   tabs: { id: string; label: string }[];
   activeTab: string;
