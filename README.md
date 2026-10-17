@@ -57,6 +57,10 @@ cd api
 dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=<host>;Port=5432;Database=<db>;Username=<user>;Password=<password>;SSL Mode=Require"
 dotnet user-secrets set "JWT_SECRET" "<a long random string>"
 ```
+### Frontend
+
+The frontend reads the API address from `VITE_API_URL`: the origin only, with no path, for example `http://localhost:5137`. For local development it comes from `frontend/.env.development`, which points at `dotnet run` and holds no secrets. Anywhere else, set `VITE_API_URL` in the environment when the frontend is built or the dev server starts. If it is missing, the app stops at startup with a message saying so.
+
 ### Docker Compose
 
 Optionally copy `.env.example` to `.env`. Compose passes the connection string to the API container and points it at the Postgres container in the compose file. The defaults in `.env.example` are for local use only. Running the whole stack with Compose is still being fixed (see `docs/CODE_REVIEW.md`, item 1.4).
