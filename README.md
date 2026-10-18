@@ -41,12 +41,13 @@
 
 ## Configuration
 
-The API reads its settings from configuration, so nothing secret is committed to the repo. Two values are needed:
+The API reads its settings from configuration, so nothing secret is committed to the repo. These values are needed:
 
 - `ConnectionStrings__DefaultConnection`: the PostgreSQL connection string (Npgsql format)
 - `JWT_SECRET`: the key used to sign access tokens
+- `CORS_ALLOWED_ORIGINS`: a comma separated list of the frontend addresses allowed to call the API (never `*`). Local development gets `http://localhost:5173` from `api/appsettings.Development.json`. Every other environment must set it.
 
-If the connection string is missing, the API stops at startup and says so.
+If the connection string or the CORS origins are missing, the API stops at startup and says so.
 
 ### Local development (`dotnet run` or F5)
 
@@ -67,7 +68,7 @@ Optionally copy `.env.example` to `.env`. Compose passes the connection string t
 
 ### Deployed (Render)
 
-Set `ConnectionStrings__DefaultConnection` and `JWT_SECRET` as environment variables on the service.
+Set `ConnectionStrings__DefaultConnection`, `JWT_SECRET` and `CORS_ALLOWED_ORIGINS` (the address of the deployed frontend) as environment variables on the service.
 
 ## Running Tests
 
