@@ -916,6 +916,69 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 30: CI That Can Fail, and the Frontend That Did Not Compile
+
+**Date:** October 17, 2026
+
+**Context:** CODE_REVIEW.md 1.1 and 4.1. The frontend had 9 TypeScript errors, so `npm run build` failed and the frontend image could not be built. Pull requests had still been merged because CI only ran lint. CI also had a format check ending in `|| true`, and it deleted package-lock.json on every run.
+
+**What I asked the AI:** How to reproduce the compile errors, fix them one at a time, and then change CI so this cannot happen again.
+
+**What it gave me:** Small fixes for the three stub tabs and an unused import, and a new CI workflow with two jobs, `api` and `frontend`.
+
+**What I changed and why:**
+1. Ran `npx tsc -b` first and got 9 errors. One of them was an unused React import in TabNav, which the review did not list.
+2. Fixed the three stub tabs (they all exported `DashboardTab`) and the unused import (PR #35). `npx tsc -b`, `npm run build` and `npm run lint` pass.
+3. Rewrote ci.yml (PR #36): `dotnet format --verify-no-changes` without `|| true`, `dotnet test api.tests`, `npm ci` instead of deleting the lockfile, and `npm run build` (tsc, then vite build). I checked locally first that format, tests and build pass, so CI would not go red on something I did not cause.
+4. Turned on "Require status checks to pass" and "Require branches to be up to date" for main, with `api` and `frontend` as the required checks. Before this the rule required no checks, so the pipeline was not a gate at all.
+5. Proved the gate can fail (PR #37, closed without merging). A deliberate type error made `frontend` fail with TS2322, `api` stayed green, and the merge button was blocked.
+
+**What I did not understand at first:**
+- Lint does not type-check. oxlint passed on a frontend that did not compile, which is how the broken code reached main.
+- `|| true` makes a step always succeed, so a check ending in it cannot fail.
+- `npm ci` installs exactly what the lockfile pins and fails if the lockfile and package.json disagree. `npm install` quietly re-resolves versions, so CI was not testing what I committed.
+- A destructured parameter like `{ _projectId }` is not the same as a parameter named `_props`. TypeScript ignores unused parameters that start with an underscore, but my code asked for a property called `_projectId` that the type did not have.
+- Branch protection matches checks by job name, and GitHub only offers a check name after it has run once. That is why I turned the rule on after the first run on the PR.
+- .NET file methods in PowerShell resolve relative paths against the folder the terminal started in, not the folder I had moved to, so my first script failed until I built the path from `$PWD`.
+
+**Where the AI cost me time:** The first script it gave me for the TabNav fix assumed I was in the repo root, so it failed with a path error after I had moved into the frontend folder.
+
+**Result:** RESOLVED. The frontend compiles, CI runs tests, type-check and build, and a red run blocks the merge. Not covered yet: building the Docker images in CI, end-to-end tests in CI, deploy on merge and dependency scanning.
+
+**Source verification:** GitHub Docs on protected branches and required status checks (checks are matched by name, and only checks that ran recently can be selected). npm docs for `npm ci`. PR #37 as the evidence that the gate fails.
+
+---
+
+### Decision 31: Frontend Reads the API Address From the Environment
+
+**Date:** October 17, 2026
+
+**Context:** CODE_REVIEW.md 1.5. Six hardcoded `http://localhost:5000` URLs in AuthContext.tsx and useApi.ts meant a deployed frontend would call the visitor's own machine. `VITE_API_URL` was set in docker-compose.yml and the frontend Dockerfile but nothing read it, which broke the brief's rule of configuration through environment variables only.
+
+**What I asked the AI:** How to make the frontend read the API address from the environment, and how Vite handles environment variables.
+
+**What it gave me:** A small `config.ts` that reads `VITE_API_URL`, replacements for the six URLs, a `.env.development` for local use and a one-line compose fix.
+
+**What I changed and why:**
+1. Reproduced first: a search found the six URLs and no use of `import.meta.env`.
+2. New `frontend/src/config.ts` exports `API_BASE_URL` and throws a clear error at startup if `VITE_API_URL` is missing. It is the same fail-fast idea as the backend connection string: a missing setting should be loud, not a silent call to localhost.
+3. The six calls now use `API_BASE_URL`.
+4. `frontend/.env.development` sets `http://localhost:5137`, the port `dotnet run` uses. Before, the code pointed at 5000, which nothing listens on outside Docker. It holds no secret, so it is committed.
+5. docker-compose.yml passes `http://localhost:5000` without `/api/v1`, because the code already adds that path.
+6. Checked in the browser: the first request goes to `http://localhost:5137/api/v1/auth/refresh`. Removing `.env.development` gives the "VITE_API_URL is not set" error.
+
+**What I did not understand at first:**
+- Vite bakes `VITE_` variables into the bundle when it builds, so a production build needs the variable at build time. Changing it afterwards does nothing.
+- Variables already in the environment, like the one compose sets, take priority over `.env` files.
+- Two different ports are both correct: 5137 when I run `dotnet run`, and 5000 when the API runs in Docker Compose, because the container's port is published on my PC.
+- `.env.development` is only loaded in dev mode, so CI's `npm run build` still works without the variable. The check happens when the app runs in a browser.
+
+**Result:** RESOLVED. Local development now reaches the API. Compose still cannot run end to end (review 1.4): the API container listens on 8080 but compose maps 5000, and CORS only allows port 5173.
+
+**Source verification:** Vite docs, "Env Variables and Modes": only `VITE_` variables are exposed, they are replaced at build time, and existing environment variables take priority over `.env` files.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: October 16, 2026
+Last updated: October 18, 2026
