@@ -1,30 +1,14 @@
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace Testify.Api.Tests;
 
-public class ProjectsControllerTests : IClassFixture<WebApplicationFactory<Program>>
+public class ProjectsControllerTests : IClassFixture<TestifyApiFactory>
 {
     private readonly HttpClient _client;
 
-    public ProjectsControllerTests(WebApplicationFactory<Program> factory)
+    public ProjectsControllerTests(TestifyApiFactory factory)
     {
-        var customFactory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseEnvironment("Test");
-
-            builder.ConfigureAppConfiguration((context, config) =>
-            {
-                config.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    { "JWT_SECRET", "test-secret-key-for-integration-tests-only-not-for-production-use" }
-                });
-            });
-        });
-
-        _client = customFactory.CreateClient();
+        _client = factory.CreateClient();
     }
 
     [Fact]
