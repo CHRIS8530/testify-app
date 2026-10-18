@@ -26,11 +26,23 @@ builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>()
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
+// Origins the browser may call the API from, as a comma separated list.
+// Read here, while services are being registered, because the CORS policy is built now.
+var allowedOrigins = (builder.Configuration["CORS_ALLOWED_ORIGINS"] ?? string.Empty)
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+if (allowedOrigins.Length == 0)
+    throw new InvalidOperationException(
+        "CORS_ALLOWED_ORIGINS is not configured. Set it to a comma separated list of frontend origins, for example http://localhost:5173.");
+
+if (allowedOrigins.Contains("*"))
+    throw new InvalidOperationException("CORS_ALLOWED_ORIGINS must list explicit origins, not *.");
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins(allowedOrigins)
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials();
