@@ -34,7 +34,7 @@ namespace Testify.Api.Controllers
 
             var member = await _db.ProjectMembers.FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.UserId == userId);
             if (member == null && project.OwnerId != userId)
-                return Forbid();
+                return this.ForbiddenResponse();
 
             var totalCases = await _db.TestCases.CountAsync(tc => tc.ProjectId == projectId);
             var totalRuns = await _db.TestRuns.CountAsync(tr => tr.ProjectId == projectId);

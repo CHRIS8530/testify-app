@@ -30,13 +30,21 @@ public class ProjectsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetProjects()
     {
-        var projects = await _db.Projects.ToListAsync();
+        var userId = GetUserIdFromToken();
+        if (userId == Guid.Empty)
+            return Unauthorized(new { error = new { message = "Unauthorized", code = "UNAUTHORIZED" }, status = 401 });
+
+        var projects = await _db.Projects
+            .Where(p => p.OwnerId == userId || p.Members.Any(m => m.UserId == userId))
+            .ToListAsync();
         return Ok(projects);
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetProject(Guid id)
     {
+        var (denied, _) = await this.RequireProjectAccessAsync(_db, id, ProjectRole.Viewer);
+        if (denied is not null) return denied;
         var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == id);
         if (project == null)
             return NotFound();
@@ -95,7 +103,7 @@ public class ProjectsController : ControllerBase
             return NotFound();
 
         if (project.OwnerId != userId)
-            return Forbid();
+            return this.ForbiddenResponse();
 
         if (string.IsNullOrWhiteSpace(req.Name))
             return BadRequest(new { error = new { message = "Name is required", code = "INVALID_NAME" }, status = 400 });
@@ -134,7 +142,7 @@ public class ProjectsController : ControllerBase
             return NotFound();
 
         if (project.OwnerId != userId)
-            return Forbid();
+            return this.ForbiddenResponse();
 
         _db.Projects.Remove(project);
         await _db.SaveChangesAsync();

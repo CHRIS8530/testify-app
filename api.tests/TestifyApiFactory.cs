@@ -1,6 +1,8 @@
+using AspNetCoreRateLimit;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Testify.Api.Tests;
 
@@ -22,6 +24,19 @@ public class TestifyApiFactory : WebApplicationFactory<Program>
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 { "JWT_SECRET", "test-secret-key-for-integration-tests-only-not-for-production-use" }
+            });
+        });
+
+        // The rate limiter would answer 429 once the tests make more than 100 requests in a minute.
+        // Rate limiting gets its own tests later.
+        builder.ConfigureServices(services =>
+        {
+            services.PostConfigure<IpRateLimitOptions>(options =>
+            {
+                options.GeneralRules = new List<RateLimitRule>
+                {
+                    new RateLimitRule { Endpoint = "*", Period = "1m", Limit = 1000000 }
+                };
             });
         });
     }

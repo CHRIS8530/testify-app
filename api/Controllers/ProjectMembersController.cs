@@ -46,7 +46,7 @@ public class ProjectMembersController : ControllerBase
             return NotFound(new { error = new { message = "Project not found", code = "NOT_FOUND" }, status = 404 });
 
         if (project.OwnerId != userId)
-            return Forbid();
+            return this.ForbiddenResponse();
 
         // Validate email
         if (string.IsNullOrWhiteSpace(req.Email))
@@ -118,7 +118,7 @@ public class ProjectMembersController : ControllerBase
             return NotFound(new { error = new { message = "Project not found", code = "NOT_FOUND" }, status = 404 });
 
         if (project.OwnerId != requestingUserId)
-            return Forbid();
+            return this.ForbiddenResponse();
 
         // Check if member exists
         var member = await _db.ProjectMembers.FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.UserId == userId);

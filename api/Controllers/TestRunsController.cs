@@ -30,6 +30,8 @@ public class TestRunsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetTestRuns(Guid projectId, [FromQuery] int limit = 50, [FromQuery] int offset = 0)
     {
+        var (denied, _) = await this.RequireProjectAccessAsync(_db, projectId, ProjectRole.Viewer);
+        if (denied is not null) return denied;
         var testRuns = await _db.TestRuns
             .Where(tr => tr.ProjectId == projectId)
             .Skip(offset)
@@ -42,6 +44,8 @@ public class TestRunsController : ControllerBase
     [HttpGet("{id}")]
     public async Task<IActionResult> GetTestRun(Guid projectId, Guid id)
     {
+        var (denied, _) = await this.RequireProjectAccessAsync(_db, projectId, ProjectRole.Viewer);
+        if (denied is not null) return denied;
         var testRun = await _db.TestRuns.FirstOrDefaultAsync(tr => tr.Id == id && tr.ProjectId == projectId);
         if (testRun == null)
             return NotFound();
@@ -56,13 +60,11 @@ public class TestRunsController : ControllerBase
         if (userId == Guid.Empty)
             return Unauthorized(new { error = new { message = "Unauthorized", code = "UNAUTHORIZED" }, status = 401 });
 
-        var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId);
-        if (project == null)
+        if (!await _db.Projects.AnyAsync(p => p.Id == projectId))
             return NotFound();
 
-        var member = await _db.ProjectMembers.FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.UserId == userId);
-        if (member == null || member.Role == "viewer")
-            return Forbid();
+        if (await ProjectAccess.GetRoleAsync(_db, projectId, userId) < ProjectRole.Editor)
+            return this.ForbiddenResponse();
 
         var testRun = new TestRun
         {
@@ -100,9 +102,8 @@ public class TestRunsController : ControllerBase
         if (testRun == null)
             return NotFound();
 
-        var member = await _db.ProjectMembers.FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.UserId == userId);
-        if (member == null || member.Role == "viewer")
-            return Forbid();
+        if (await ProjectAccess.GetRoleAsync(_db, projectId, userId) < ProjectRole.Editor)
+            return this.ForbiddenResponse();
 
         testRun.Status = req.Status;
         testRun.UpdatedAt = DateTime.UtcNow;
@@ -133,9 +134,8 @@ public class TestRunsController : ControllerBase
         if (testRun == null)
             return NotFound();
 
-        var member = await _db.ProjectMembers.FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.UserId == userId);
-        if (member == null || member.Role == "viewer")
-            return Forbid();
+        if (await ProjectAccess.GetRoleAsync(_db, projectId, userId) < ProjectRole.Editor)
+            return this.ForbiddenResponse();
 
         _db.TestRuns.Remove(testRun);
         await _db.SaveChangesAsync();
