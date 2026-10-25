@@ -30,6 +30,8 @@ public class TestRunResultsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetResults(Guid projectId, Guid runId)
     {
+        var (denied, _) = await this.RequireProjectAccessAsync(_db, projectId, ProjectRole.Viewer);
+        if (denied is not null) return denied;
         var run = await _db.TestRuns.FirstOrDefaultAsync(tr => tr.Id == runId && tr.ProjectId == projectId);
         if (run == null)
             return NotFound(new { error = new { message = "Test run not found", code = "NOT_FOUND" }, status = 404 });
@@ -64,9 +66,8 @@ public class TestRunResultsController : ControllerBase
         if (run == null)
             return NotFound(new { error = new { message = "Test run not found", code = "NOT_FOUND" }, status = 404 });
 
-        var member = await _db.ProjectMembers.FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.UserId == userId);
-        if (member == null || member.Role == "viewer")
-            return Forbid();
+        if (await ProjectAccess.GetRoleAsync(_db, projectId, userId) < ProjectRole.Editor)
+            return this.ForbiddenResponse();
 
         if (req.TestCaseIds == null || req.TestCaseIds.Count == 0)
             return BadRequest(new { error = new { message = "At least one test case ID is required", code = "INVALID_INPUT" }, status = 400 });
@@ -121,9 +122,8 @@ public class TestRunResultsController : ControllerBase
         if (result == null)
             return NotFound(new { error = new { message = "Result not found", code = "NOT_FOUND" }, status = 404 });
 
-        var member = await _db.ProjectMembers.FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.UserId == userId);
-        if (member == null || member.Role == "viewer")
-            return Forbid();
+        if (await ProjectAccess.GetRoleAsync(_db, projectId, userId) < ProjectRole.Editor)
+            return this.ForbiddenResponse();
 
         var validResults = new[] { "Not Run", "Pass", "Fail", "Blocked" };
         if (string.IsNullOrWhiteSpace(req.Result) || !validResults.Contains(req.Result))

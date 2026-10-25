@@ -30,6 +30,8 @@ public class DefectsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetDefects(Guid projectId, [FromQuery] int limit = 50, [FromQuery] int offset = 0)
     {
+        var (denied, _) = await this.RequireProjectAccessAsync(_db, projectId, ProjectRole.Viewer);
+        if (denied is not null) return denied;
         var testCaseIds = await _db.TestCases
             .Where(tc => tc.ProjectId == projectId)
             .Select(tc => tc.Id)
@@ -47,6 +49,8 @@ public class DefectsController : ControllerBase
     [HttpGet("{id}")]
     public async Task<IActionResult> GetDefect(Guid projectId, Guid id)
     {
+        var (denied, _) = await this.RequireProjectAccessAsync(_db, projectId, ProjectRole.Viewer);
+        if (denied is not null) return denied;
         var testCaseIds = await _db.TestCases
             .Where(tc => tc.ProjectId == projectId)
             .Select(tc => tc.Id)
@@ -66,13 +70,11 @@ public class DefectsController : ControllerBase
         if (userId == Guid.Empty)
             return Unauthorized(new { error = new { message = "Unauthorized", code = "UNAUTHORIZED" }, status = 401 });
 
-        var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId);
-        if (project == null)
+        if (!await _db.Projects.AnyAsync(p => p.Id == projectId))
             return NotFound();
 
-        var member = await _db.ProjectMembers.FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.UserId == userId);
-        if (member == null)
-            return Forbid();
+        if (await ProjectAccess.GetRoleAsync(_db, projectId, userId) < ProjectRole.Editor)
+            return this.ForbiddenResponse();
 
         if (string.IsNullOrWhiteSpace(req.Title))
             return BadRequest(new { error = new { message = "Title is required", code = "INVALID_TITLE" }, status = 400 });
@@ -121,9 +123,8 @@ public class DefectsController : ControllerBase
         if (testCase?.ProjectId != projectId)
             return NotFound();
 
-        var member = await _db.ProjectMembers.FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.UserId == userId);
-        if (member == null)
-            return Forbid();
+        if (await ProjectAccess.GetRoleAsync(_db, projectId, userId) < ProjectRole.Editor)
+            return this.ForbiddenResponse();
 
         defect.Status = req.Status;
         defect.UpdatedAt = DateTime.UtcNow;
@@ -158,9 +159,8 @@ public class DefectsController : ControllerBase
         if (testCase?.ProjectId != projectId)
             return NotFound();
 
-        var member = await _db.ProjectMembers.FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.UserId == userId);
-        if (member == null)
-            return Forbid();
+        if (await ProjectAccess.GetRoleAsync(_db, projectId, userId) < ProjectRole.Editor)
+            return this.ForbiddenResponse();
 
         _db.Defects.Remove(defect);
         await _db.SaveChangesAsync();
