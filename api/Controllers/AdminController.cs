@@ -38,14 +38,10 @@ public class AdminController : ControllerBase
         if (requestingUserId == Guid.Empty)
             return Unauthorized(new { error = new { message = "Unauthorized", code = "UNAUTHORIZED" }, status = 401 });
 
-        // Only owner (Chris) can view audit logs
-        // In a real app, you'd check a role or permission table
-        // For now, we'll allow anyone authenticated to view logs (this should be restricted later)
-        // For this MVP, let's assume the owner is the user who can access this
-        // We'll validate that the requesting user can view these logs
-
-        // Build query
-        var query = _db.AuditLogs.AsQueryable();
+        // A user can read audit entries for their own actions and for any project they own.
+        // There is no admin role, so nobody can read the activity of unrelated users.
+        var ownedProjectIds = _db.Projects.Where(p => p.OwnerId == requestingUserId).Select(p => (Guid?)p.Id);
+        var query = _db.AuditLogs.Where(al => al.UserId == requestingUserId || ownedProjectIds.Contains(al.ProjectId));
 
         if (projectId.HasValue)
             query = query.Where(al => al.ProjectId == projectId);
