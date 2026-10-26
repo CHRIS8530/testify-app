@@ -33,6 +33,40 @@ public class AuthController : ControllerBase
         _logger = logger;
     }
 
+    private const string RefreshCookieName = "refreshToken";
+
+    // httpOnly (JavaScript cannot read it), Secure, SameSite Strict, and only sent to the auth endpoints.
+    private static CookieOptions RefreshCookieOptions(DateTimeOffset? expires)
+    {
+        return new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.Strict,
+            Path = "/api/v1/auth",
+            Expires = expires
+        };
+    }
+
+    // Creates a refresh token, stores only its hash, and sends the real value to the browser in the cookie.
+    private async Task IssueRefreshTokenAsync(Guid userId)
+    {
+        var token = TokenHasher.NewToken();
+        var expiresAt = DateTime.UtcNow.AddDays(7);
+
+        _db.RefreshTokens.Add(new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Token = TokenHasher.Hash(token),
+            ExpiresAt = expiresAt,
+            CreatedAt = DateTime.UtcNow
+        });
+        await _db.SaveChangesAsync();
+
+        Response.Cookies.Append(RefreshCookieName, token, RefreshCookieOptions(expiresAt));
+    }
+
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest req)
     {
@@ -101,33 +135,7 @@ public class AuthController : ControllerBase
             return Unauthorized(new { error = new { message = "Invalid email or password", code = "INVALID_CREDENTIALS" }, status = 401 });
 
         var accessToken = _jwtService.GenerateAccessToken(user.Id, user.Email, user.Username);
-        var refreshToken = Guid.NewGuid().ToString();
-        var refreshTokenExpiry = DateTime.UtcNow.AddDays(7);
-
-        var dbRefreshToken = new RefreshToken
-        {
-            Id = Guid.NewGuid(),
-            UserId = user.Id,
-            Token = refreshToken,
-            ExpiresAt = refreshTokenExpiry,
-            CreatedAt = DateTime.UtcNow
-        };
-
-        _db.RefreshTokens.Add(dbRefreshToken);
-        await _db.SaveChangesAsync();
-
-        // Set httpOnly cookie
-        Response.Cookies.Append(
-            "refreshToken",
-            refreshToken,
-            new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = true,
-                SameSite = SameSiteMode.Strict,
-                Expires = refreshTokenExpiry
-            }
-        );
+        await IssueRefreshTokenAsync(user.Id);
 
         await _auditLogService.LogActionAsync(
             user.Id,
@@ -148,51 +156,63 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("refresh")]
-    public async Task<IActionResult> Refresh([FromBody] RefreshRequest req)
+    public async Task<IActionResult> Refresh()
     {
-        if (string.IsNullOrWhiteSpace(req.RefreshToken))
+        // The refresh token travels in an httpOnly cookie, so JavaScript never sees it.
+        var presented = Request.Cookies[RefreshCookieName];
+        if (string.IsNullOrWhiteSpace(presented))
             return Unauthorized(new { error = new { message = "Refresh token required", code = "INVALID_TOKEN" }, status = 401 });
 
+        var hash = TokenHasher.Hash(presented);
         var dbToken = await _db.RefreshTokens
             .Include(rt => rt.User)
-            .FirstOrDefaultAsync(rt => rt.Token == req.RefreshToken);
+            .FirstOrDefaultAsync(rt => rt.Token == hash);
 
         if (dbToken == null || !dbToken.IsValid)
             return Unauthorized(new { error = new { message = "Invalid or expired refresh token", code = "INVALID_TOKEN" }, status = 401 });
 
+        // Rotation: the token that was just used is retired and a new one replaces it.
+        // IssueRefreshTokenAsync saves both changes together.
+        dbToken.RevokedAt = DateTime.UtcNow;
+        await IssueRefreshTokenAsync(dbToken.UserId);
+
         var user = dbToken.User;
-        var newAccessToken = _jwtService.GenerateAccessToken(user.Id, user.Email, user.Username);
+        var accessToken = _jwtService.GenerateAccessToken(user.Id, user.Email, user.Username);
 
         return Ok(new
         {
-            accessToken = newAccessToken,
-            expiresIn = 900
+            accessToken,
+            expiresIn = 900,
+            user = new { id = user.Id, email = user.Email, username = user.Username }
         });
     }
 
     [HttpPost("logout")]
-    public async Task<IActionResult> Logout([FromBody] LogoutRequest req)
+    public async Task<IActionResult> Logout()
     {
-        if (string.IsNullOrWhiteSpace(req.RefreshToken))
-            return Unauthorized(new { error = new { message = "Refresh token required", code = "INVALID_TOKEN" }, status = 401 });
+        var presented = Request.Cookies[RefreshCookieName];
+        if (!string.IsNullOrWhiteSpace(presented))
+        {
+            var hash = TokenHasher.Hash(presented);
+            var dbToken = await _db.RefreshTokens.FirstOrDefaultAsync(rt => rt.Token == hash);
+            if (dbToken != null && dbToken.RevokedAt == null)
+            {
+                dbToken.RevokedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync();
 
-        var dbToken = await _db.RefreshTokens.FirstOrDefaultAsync(rt => rt.Token == req.RefreshToken);
-        if (dbToken == null)
-            return Unauthorized(new { error = new { message = "Token not found", code = "INVALID_TOKEN" }, status = 401 });
+                await _auditLogService.LogActionAsync(
+                    dbToken.UserId,
+                    "logout",
+                    "user",
+                    dbToken.UserId,
+                    null,
+                    null,
+                    HttpContext.Connection.RemoteIpAddress?.ToString()
+                );
+            }
+        }
 
-        dbToken.RevokedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync();
-
-        await _auditLogService.LogActionAsync(
-            dbToken.UserId,
-            "logout",
-            "user",
-            dbToken.UserId,
-            null,
-            null,
-            HttpContext.Connection.RemoteIpAddress?.ToString()
-        );
-
+        Response.Cookies.Delete(RefreshCookieName, RefreshCookieOptions(null));
         return NoContent();
     }
 
@@ -206,12 +226,12 @@ public class AuthController : ControllerBase
         if (user == null)
             return Ok(new { message = "Password reset email sent" }); // Security: don't leak whether email exists
 
-        var resetToken = Guid.NewGuid().ToString();
+        var resetToken = TokenHasher.NewToken();
         var passwordReset = new PasswordReset
         {
             Id = Guid.NewGuid(),
             UserId = user.Id,
-            Token = resetToken,
+            Token = TokenHasher.Hash(resetToken),
             ExpiresAt = DateTime.UtcNow.AddHours(1),
             CreatedAt = DateTime.UtcNow
         };
@@ -240,9 +260,10 @@ public class AuthController : ControllerBase
         if (string.IsNullOrWhiteSpace(req.Token) || string.IsNullOrWhiteSpace(req.NewPassword))
             return BadRequest(new { error = new { message = "Token and password required", code = "INVALID_INPUT" }, status = 400 });
 
+        var resetTokenHash = TokenHasher.Hash(req.Token);
         var passwordReset = await _db.PasswordResets
             .Include(pr => pr.User)
-            .FirstOrDefaultAsync(pr => pr.Token == req.Token);
+            .FirstOrDefaultAsync(pr => pr.Token == resetTokenHash);
 
         if (passwordReset == null || !passwordReset.IsValid)
             return BadRequest(new { error = new { message = "Invalid or expired reset token", code = "INVALID_TOKEN" }, status = 400 });
@@ -294,16 +315,6 @@ public class LoginRequest
 {
     public string Email { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
-}
-
-public class RefreshRequest
-{
-    public string RefreshToken { get; set; } = string.Empty;
-}
-
-public class LogoutRequest
-{
-    public string RefreshToken { get; set; } = string.Empty;
 }
 
 public class ForgotPasswordRequest
