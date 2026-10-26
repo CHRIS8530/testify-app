@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Testify.Api.Data;
-using Microsoft.AspNetCore.RateLimiting;
 
 namespace Testify.Api.Controllers;
 
@@ -10,13 +9,13 @@ namespace Testify.Api.Controllers;
 public class HealthController : ControllerBase
 {
     private readonly TestifyDbContext _context;
+    private readonly ILogger<HealthController> _logger;
 
-    public HealthController(TestifyDbContext context)
+    public HealthController(TestifyDbContext context, ILogger<HealthController> logger)
     {
         _context = context;
+        _logger = logger;
     }
-
-    [EnableRateLimiting("fixed")]
 
     [HttpGet]
     public async Task<IActionResult> Get()
@@ -35,12 +34,12 @@ public class HealthController : ControllerBase
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Health check failed");
             return StatusCode(503, new
             {
                 status = "unhealthy",
                 timestamp = DateTime.UtcNow,
-                database = "disconnected",
-                error = ex.Message
+                database = "disconnected"
             });
         }
     }
