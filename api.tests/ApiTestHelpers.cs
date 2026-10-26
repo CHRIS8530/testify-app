@@ -10,7 +10,7 @@ public record TestUser(HttpClient Client, Guid Id, string Email);
 
 public static class ApiTestHelpers
 {
-    private const string Password = "Passw0rd!test";
+    public const string Password = "Passw0rd!test";
 
     // Registers and signs in a brand new user. Every call uses a unique email, because tests share one in-memory database.
     public static async Task<TestUser> CreateUserAsync(TestifyApiFactory factory)
