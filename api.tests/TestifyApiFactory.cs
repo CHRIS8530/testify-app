@@ -1,8 +1,10 @@
 using AspNetCoreRateLimit;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Testify.Api.Services;
 
 namespace Testify.Api.Tests;
 
@@ -38,6 +40,13 @@ public class TestifyApiFactory : WebApplicationFactory<Program>
                     new RateLimitRule { Endpoint = "*", Period = "1m", Limit = 1000000 }
                 };
             });
+        });
+
+        // Emails are captured in memory instead of being logged.
+        builder.ConfigureTestServices(services =>
+        {
+            services.AddSingleton<CapturingEmailService>();
+            services.AddScoped<IEmailService>(provider => provider.GetRequiredService<CapturingEmailService>());
         });
     }
 }
