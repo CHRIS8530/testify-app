@@ -979,6 +979,160 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 32: CORS Origins Come From Configuration, Tests First
+
+**Date:** October 18, 2026
+
+**Context:** CODE_REVIEW.md 1.4 (point 3). Program.cs allowed only http://localhost:5173, but Compose serves the frontend on port 3000 and a deployed frontend has its own address. The brief asks for CORS locked to a known origin, never `*`, and for configuration through environment variables.
+
+**What I asked the AI:** How to read the allowed origins from configuration, keep `*` out, and test that the right origin is allowed and any other is not.
+
+**What it gave me:** A comma separated `CORS_ALLOWED_ORIGINS` setting read in Program.cs, a startup error when it is missing or contains `*`, a development default in appsettings.Development.json, and two tests.
+
+**What I changed and why:**
+1. Wrote the tests first and ran them: the configured-origin test failed and the other-origin test passed, as predicted.
+2. Moved the test setup into one shared `TestifyApiFactory`.
+3. Made the change, then proved the startup failures by running with `ASPNETCORE_ENVIRONMENT=Production` and `--no-launch-profile`: a missing value, `*`, and a valid origin that then stopped at the next missing setting.
+4. Compose passes `http://localhost:3000`.
+
+**What I did not understand at first:**
+- Program.cs reads configuration while it is still registering services, which happens before the test factory's `ConfigureAppConfiguration` values arrive. Settings that Program.cs needs that early must go in with `UseSetting`. `JWT_SECRET` works with `ConfigureAppConfiguration` because JwtService reads it later. It is the same family of problem as Decisions 7 and 16.
+- A browser sends a preflight OPTIONS request before a cross-origin call, and the `Access-Control-Allow-Origin` response header decides whether the call goes ahead.
+- Browsers refuse `*` together with credentials, so the cookie based sign in needs explicit origins anyway.
+
+**Result:** RESOLVED. `AllowAnyMethod` and `AllowAnyHeader` are still open (review 2.7).
+
+**Source verification:** dotnet/aspnetcore issue 37680 and the ASP.NET Core integration testing documentation on how factory configuration is applied.
+
+---
+
+### Decision 33: Docker Desktop Would Not Start, So Compose Is Parked
+
+**Date:** October 19, 2026
+
+**Context:** CODE_REVIEW.md 1.4 needs `docker compose up` to be shown working. Docker Desktop on my laptop, which had worked before, stopped starting with "Error: backend exited before becoming ready".
+
+**What I asked the AI:** How to diagnose it, and whether to keep going.
+
+**What it gave me:** A series of checks (WSL version and distributions, the Windows features it needs, leftover processes, the backend log), a reinstall over the old version, and a time box. The backend log showed a normal start and then simply stopped, with no error line.
+
+**What I changed and why:** I stopped after spending too long on it. The planned compose edits (API build context, port mapping, Node 22 in the frontend image) are parked with nothing lost. I told Eric what I had tried and that I would prove compose in CI instead: a job that builds both images, starts the stack and checks the health endpoint and the CORS preflight. He had not replied when I moved on.
+
+**What I did not understand at first:** `docker --version` working only means the command line client is installed. The engine lives inside Docker Desktop, so `docker info` fails when Docker Desktop is not running. On Windows it also depends on WSL 2 and its own `docker-desktop` distribution.
+
+**Where the AI cost me time:** The plan to verify compose assumed Docker would run on my machine. When it did not, the diagnosis took far longer than it should have. I should have time-boxed it harder and switched to CI sooner.
+
+**Result:** PARKED. Compose and the production frontend image are still to do (review 1.4 and 4.4).
+
+---
+
+### Decision 34: One Helper Decides Who Can Do What
+
+**Date:** October 22, 2026
+
+**Context:** CODE_REVIEW.md 2.1, 2.3, 2.4 and 2.6. Anyone, signed in or not, could read every project. Every "not allowed" answer crashed with a 500 because `Forbid()` needs an authentication scheme the app never registers. A project owner could not write to their own project. The only test asserted the leak as correct behaviour.
+
+**What I asked the AI:** How to make every project endpoint check who is asking, what to do about `Forbid()`, and how to prove it with tests.
+
+**What it gave me:** A `ProjectAccess.GetRoleAsync` helper, two controller helpers (`RequireProjectAccessAsync` and `ForbiddenResponse`), scripted edits for every controller, and 22 authorization tests.
+
+**What I changed and why:**
+1. Wrote the tests first: 16 of 27 failed before the fix (including the owner who could not write, and the crashes) and all 27 passed after.
+2. Decided that the owner is whoever `Project.OwnerId` says, and the ProjectMembers table only holds invited people (editor or viewer). One source of truth, no second row to keep in sync and no backfill of old projects. DATABASE_SCHEMA.md says the owner is also a member, which is why the planning documents now carry a banner.
+3. Status codes: 401 without a token, 404 for an unknown project, 403 for a known user without enough access.
+4. Reads need viewer, changes to test cases, runs, results and defects need editor, project update and delete and invitations need owner. Viewers became read only on defects too.
+5. Replaced `Forbid()` with `ForbiddenResponse`, which returns the standard error shape. I kept the custom authentication middleware, because switching to the JwtBearer package would change how claims are mapped.
+6. Project existence checks use `AnyAsync` instead of loading the project, which also stopped the object cycle 500 on creating test cases, runs and defects.
+
+**What I did not understand at first:**
+- Why write a test that fails first. It proves the test can detect the bug, so a pass afterwards means something. The old test `GetProjects_ReturnsOk` could never fail, so it proved nothing.
+- Why `Forbid()` crashed: it asks the authentication system to write the response, and the app registers no scheme because the custom middleware parses the token itself.
+- In the test client an unhandled server exception is thrown as an exception instead of showing up as a 500.
+
+**Result:** RESOLVED for project data. The audit log, tokens and input validation follow in Decisions 35 to 37.
+
+**Source verification:** OWASP Top 10, A01 Broken Access Control.
+
+---
+
+### Decision 35: Audit Log Scoped To The User, Three Leaks Closed
+
+**Date:** October 25, 2026
+
+**Context:** CODE_REVIEW.md 2.2 and 2.7. Any signed in user could read every user's audit entries, including emails and IP addresses. `User.PasswordHash` had no `[JsonIgnore]`. The health endpoint returned raw exception text. A rate limit attribute pointed at a policy that does not exist.
+
+**What I asked the AI:** How to restrict the audit log without adding an admin role, and how to close the smaller leaks.
+
+**What it gave me:** A rule that a user reads entries for their own actions and for projects they own, `[JsonIgnore]` on the hash, a health endpoint that logs the exception and returns only the status, and removal of the dead attribute.
+
+**What I changed and why:**
+1. Tests first: 7 new, 4 failed before the fix (34 in total), all passed after. Three of the new tests passed before and after on purpose, to prove the fix does not lock out legitimate access (a user's own entries, an owner seeing an editor's actions).
+2. In the test environment the health check always fails, because the in-memory database cannot run raw SQL, which made it possible to test the error path.
+
+**What I did not understand at first:**
+- The code comment in AdminController was honest that this was unfinished, while SECURITY.md claimed "owner only". The document was the problem, not the code.
+- Exception text can reveal host and database names, so it goes in the server log and never in the response.
+- `[JsonIgnore]` protects the hash even if some endpoint returns a `User` by mistake.
+
+**Result:** RESOLVED. Rate limiting on the auth endpoints is still to do (2.7).
+
+**Source verification:** OWASP Top 10, A01 and A09.
+
+---
+
+### Decision 36: Tokens Stored As Hashes, Refresh Tokens Rotate
+
+**Date:** October 26, 2026
+
+**Context:** CODE_REVIEW.md 2.5 and 3.4. Refresh and password reset tokens were stored in plain text, refresh tokens never changed, and `/auth/refresh` expected the token in the request body, which JavaScript cannot supply from an httpOnly cookie. So the silent refresh could never work and every reload signed you out.
+
+**What I asked the AI:** How to store tokens safely, rotate refresh tokens, and make the endpoints read the cookie.
+
+**What it gave me:** A `TokenHasher` (256 random bits, SHA-256 for storage), one helper that issues refresh tokens, a cookie limited to `/api/v1/auth`, a refresh endpoint that retires the used token and returns the user, a logout that revokes the token and clears the cookie, and 10 tests.
+
+**What I changed and why:**
+1. Tests first: 8 of the 10 new tests failed before the fix (44 in total), all passed after.
+2. Kept the column name `Token` although it now holds the hash, to avoid a migration. Sessions and reset links from before the change stop working, so everyone signs in once more.
+3. Removed the unused `RefreshRequest` and `LogoutRequest` classes.
+
+**What I did not understand at first:**
+- A fast hash is fine for these tokens because they are random and cannot be guessed. Passwords need bcrypt because people choose guessable ones.
+- The browser sends an httpOnly cookie by itself when the request includes credentials. That is why the endpoint must read the cookie, not the body.
+- The .NET test client does not send Secure cookies over http, so the tests switch cookie handling off and send the header by hand.
+- Rotation can race with React StrictMode, which runs the page-load refresh twice in development. The auth flow PR deals with it.
+
+**Result:** RESOLVED, with limits: a stolen token that is reused is rejected but does not end all sessions, and SameSite Strict needs the frontend and API on the same site once deployed.
+
+**Source verification:** OWASP Top 10, A07, and the OWASP session management guidance on rotating tokens.
+
+---
+
+### Decision 37: Validate Status Values And Defect References
+
+**Date:** October 27, 2026
+
+**Context:** CODE_REVIEW.md 3.1, 3.2, 3.3 and 3.9. Any string was accepted for priority, severity and statuses. Runs started as "pending" and never set `completedAt`. Defects were created as "open" while the dashboard counted "Open", so open defects by severity was always empty. A defect could point at another project's test case. Adding cases to a run saved and then crashed with a 500.
+
+**What I asked the AI:** How to validate the allowed values in one place, fix the status bugs, and make defect creation check what it references.
+
+**What it gave me:** An `Allowed` class with the value lists, 400 responses with codes, the status fixes, a check that a defect comes from a failed result of a run in the same project for that result's test case, and plain-object responses for two endpoints.
+
+**What I changed and why:**
+1. Tests first: 12 new, all 12 failed before the fix (56 in total), all passed after. The defect tests seed their data straight into the database so they do not depend on the endpoint that crashed.
+2. The defect check is also a tenant isolation fix, because without it a member of project B could attach a defect to project A.
+3. Left a full DTO layer, status transition rules and `resolvedAt` for later.
+
+**What I did not understand at first:**
+- `"open"` and `"Open"` are two different values for the database and for C#, so the dashboard and the writer disagreed without any error.
+- Returning an EF entity can serialise its related objects too, and two objects that point at each other make the serialiser loop.
+- A test that seeds data directly is more precise than one that goes through three endpoints, because a failure points at the thing being tested.
+
+**Result:** RESOLVED for the write path. Pagination bounds, one error shape and PUT versus PATCH are still to do (3.5, 3.7, 3.8).
+
+**Source verification:** OWASP Top 10, A01 and A04.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: October 18, 2026
+Last updated: October 27, 2026

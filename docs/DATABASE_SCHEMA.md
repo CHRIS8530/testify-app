@@ -1,5 +1,7 @@
 # Testify Database Schema
 
+> Planning document written before coding. Where it differs from the code, the code is the source of truth. See docs/DECISIONS.md for what changed and why.
+
 This document defines all tables, fields, and relationships for the Testify application.
 Generated during decomposition phase before coding.
 

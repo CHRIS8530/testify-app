@@ -1,5 +1,7 @@
 # Testify React Components Architecture
 
+> Planning document written before coding. Where it differs from the code, the code is the source of truth. See docs/DECISIONS.md for what changed and why.
+
 Component tree, data flow, and state management for the Testify frontend.
 Built with React + TypeScript, using client-side router (React Router v6).
 

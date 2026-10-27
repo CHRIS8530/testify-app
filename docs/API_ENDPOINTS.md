@@ -1,5 +1,7 @@
 # Testify API Endpoints
 
+> Planning document written before coding. Where it differs from the code, the code is the source of truth. See docs/DECISIONS.md for what changed and why.
+
 RESTful API specification for Testify, versioned under `/api/v1`.
 All requests require proper authentication (JWT or session).
 All responses follow a consistent error shape.
