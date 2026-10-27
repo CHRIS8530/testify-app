@@ -108,7 +108,8 @@ public class TestRunResultsController : ControllerBase
             HttpContext.Connection.RemoteIpAddress?.ToString()
         );
 
-        return CreatedAtAction(nameof(GetResults), new { projectId, runId }, newResults);
+        var created = newResults.Select(r => new { r.Id, r.TestRunId, r.TestCaseId, r.Result, r.Notes, r.CreatedAt, r.UpdatedAt }).ToList();
+        return CreatedAtAction(nameof(GetResults), new { projectId, runId }, created);
     }
 
     [HttpPatch("{resultId}")]
@@ -145,7 +146,7 @@ public class TestRunResultsController : ControllerBase
             HttpContext.Connection.RemoteIpAddress?.ToString()
         );
 
-        return Ok(result);
+        return Ok(new { result.Id, result.TestRunId, result.TestCaseId, result.Result, result.Notes, result.CreatedAt, result.UpdatedAt });
     }
 }
 
