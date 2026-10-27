@@ -1,3 +1,13 @@
+# Testify
+
+![CI](https://github.com/CHRIS8530/testify-app/actions/workflows/ci.yml/badge.svg)
+
+Testify is a lightweight test run and defect tracker. You create projects, write test cases, run a selection of them and record Pass, Fail or Blocked, raise defects from failed results, and see a dashboard per project. The API is C# on .NET 10 with PostgreSQL, the web app is React with TypeScript.
+
+Built for an AI-assisted engineering challenge. Every significant decision is recorded in [docs/DECISIONS.md](docs/DECISIONS.md) and the security model in [docs/SECURITY.md](docs/SECURITY.md).
+
+**Status:** the API covers all the core features and is tested. The web app is not finished, see Known Limitations below.
+
 ## API Endpoints
 
 ### Auth
@@ -79,7 +89,7 @@ cd api.tests
 dotnet test
 ```
 
-Expected: 4/4 passing
+Expected: all tests passing
 
 ### Frontend E2E Tests
 
@@ -118,7 +128,7 @@ Partial setup complete. PostgreSQL database provisioned on Render, connection st
 4. Deploy frontend to Vercel
 5. Configure HTTPS and custom domain
 
-See `docs/decisions/Milestone5.md` for full technical details.
+See [docs/DECISIONS.md](docs/DECISIONS.md) (Decisions 25 to 29) for the technical details.
 
 ## Architecture
 
@@ -137,25 +147,19 @@ See `docs/decisions/Milestone5.md` for full technical details.
 4. Response returned as JSON
 5. Frontend updates React state via useState/context
 
-## Known Issues
+## Known Limitations
 
-### Linting
-- 6 ESLint warnings remain (exhaustive-deps on useEffect hooks)
-- These are non-critical and can be addressed post-deadline
-- All production code compiles and runs without errors
-
-### Dependencies
-- 2 npm audit moderate vulnerabilities (Microsoft.OpenApi)
-- No active security exploits; recommended for post-deadline update
+- The web app is incomplete. Sign in and the project list work. Creating a project from the screen, editing a test case (the screen sends PATCH, the API expects PUT), and the Test Runs, Defects and Dashboard tabs do not work yet. The API behind all of them is implemented and tested.
+- `docker compose up` does not run end to end yet: the API port mapping and build context need fixing, and the frontend image still runs the Vite dev server. Docker Desktop would not start on the development machine, so this is to be proven in CI instead.
+- The OpenAPI specification is not served yet.
+- The Cloud Deployment section below is out of date.
+- 6 lint warnings (oxlint, React hook dependencies) are known and not fixed.
+- A high severity advisory in `Microsoft.OpenApi` 2.0.0 shows as build warning NU1903, and `npm audit` reports 3 vulnerabilities in the frontend. Neither is triaged yet.
+- Security specific limitations are listed in [docs/SECURITY.md](docs/SECURITY.md).
 
 ## Decision Log
 
-All significant decisions documented in `docs/decisions/`:
-- **Milestone1.md** — Schema design, auth strategy
-- **Milestone2.md** — API architecture, endpoint structure
-- **Milestone3.md** — Auth implementation, security decisions
-- **Milestone4.md** — Frontend framework choices, component design
-- **Milestone5.md** — Deployment strategy, infrastructure decisions
+Every significant decision is recorded in [docs/DECISIONS.md](docs/DECISIONS.md): what I was trying to do, what I asked the AI, what changed and why, and what I did not understand at first.
 
 ## Support & Feedback
 
@@ -163,4 +167,4 @@ This project was built as part of an AI-Assisted Engineering Challenge. Question
 
 ---
 
-**Last Updated:** October 17, 2026
+**Last Updated:** October 27, 2026

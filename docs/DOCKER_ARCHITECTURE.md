@@ -1,5 +1,7 @@
 # Testify Docker Architecture
 
+> Planning document written before coding. Where it differs from the code, the code is the source of truth. See docs/DECISIONS.md for what changed and why.
+
 Local development environment using Docker Compose.
 All services (API, Frontend, Database) run in containers for consistency.
 
