@@ -79,6 +79,26 @@ public class DefectsController : ControllerBase
         if (string.IsNullOrWhiteSpace(req.Title))
             return BadRequest(new { error = new { message = "Title is required", code = "INVALID_TITLE" }, status = 400 });
 
+        var severity = req.Severity ?? "Medium";
+        if (!Allowed.Severities.Contains(severity))
+            return BadRequest(new { error = new { message = "Severity must be one of: Low, Medium, High, Critical", code = "INVALID_SEVERITY" }, status = 400 });
+
+        // A defect is raised from a failed result of a run in this project, for that result's test case.
+        var failedResult = await _db.TestRunResults
+            .AsNoTracking()
+            .Where(r => r.Id == req.TestRunResultId && r.TestRun.ProjectId == projectId && r.TestCase.ProjectId == projectId)
+            .Select(r => new { r.TestCaseId, r.Result })
+            .FirstOrDefaultAsync();
+
+        if (failedResult == null)
+            return BadRequest(new { error = new { message = "Test run result not found in this project", code = "INVALID_RESULT" }, status = 400 });
+
+        if (failedResult.TestCaseId != req.TestCaseId)
+            return BadRequest(new { error = new { message = "The test case does not belong to that test run result", code = "INVALID_TEST_CASE" }, status = 400 });
+
+        if (failedResult.Result != "Fail")
+            return BadRequest(new { error = new { message = "A defect can only be raised from a failed result", code = "RESULT_NOT_FAILED" }, status = 400 });
+
         var defect = new Defect
         {
             Id = Guid.NewGuid(),
@@ -86,8 +106,8 @@ public class DefectsController : ControllerBase
             TestRunResultId = req.TestRunResultId,
             Title = req.Title,
             Description = req.Description ?? string.Empty,
-            Severity = req.Severity ?? "Medium",
-            Status = "open",
+            Severity = severity,
+            Status = "Open",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -125,6 +145,9 @@ public class DefectsController : ControllerBase
 
         if (await ProjectAccess.GetRoleAsync(_db, projectId, userId) < ProjectRole.Editor)
             return this.ForbiddenResponse();
+
+        if (!Allowed.DefectStatuses.Contains(req.Status))
+            return BadRequest(new { error = new { message = "Status must be one of: Open, In Progress, Resolved, Closed", code = "INVALID_STATUS" }, status = 400 });
 
         defect.Status = req.Status;
         defect.UpdatedAt = DateTime.UtcNow;

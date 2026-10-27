@@ -69,6 +69,9 @@ public class TestCasesController : ControllerBase
         if (string.IsNullOrWhiteSpace(req.Title))
             return BadRequest(new { error = new { message = "Title is required", code = "INVALID_TITLE" }, status = 400 });
 
+        if (!Allowed.Priorities.Contains(req.Priority))
+            return BadRequest(new { error = new { message = "Priority must be one of: Low, Medium, High, Critical", code = "INVALID_PRIORITY" }, status = 400 });
+
         var testCase = new TestCase
         {
             Id = Guid.NewGuid(),
@@ -114,6 +117,9 @@ public class TestCasesController : ControllerBase
 
         if (string.IsNullOrWhiteSpace(req.Title))
             return BadRequest(new { error = new { message = "Title is required", code = "INVALID_TITLE" }, status = 400 });
+
+        if (!Allowed.Priorities.Contains(req.Priority))
+            return BadRequest(new { error = new { message = "Priority must be one of: Low, Medium, High, Critical", code = "INVALID_PRIORITY" }, status = 400 });
 
         testCase.Title = req.Title;
         testCase.Preconditions = req.Preconditions;

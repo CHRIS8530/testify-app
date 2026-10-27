@@ -70,7 +70,7 @@ public class TestRunsController : ControllerBase
         {
             Id = Guid.NewGuid(),
             ProjectId = projectId,
-            Status = "pending",
+            Status = "In Progress",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -105,7 +105,11 @@ public class TestRunsController : ControllerBase
         if (await ProjectAccess.GetRoleAsync(_db, projectId, userId) < ProjectRole.Editor)
             return this.ForbiddenResponse();
 
+        if (!Allowed.RunStatuses.Contains(req.Status))
+            return BadRequest(new { error = new { message = "Status must be one of: In Progress, Complete", code = "INVALID_STATUS" }, status = 400 });
+
         testRun.Status = req.Status;
+        testRun.CompletedAt = req.Status == "Complete" ? (DateTime?)(testRun.CompletedAt ?? DateTime.UtcNow) : null;
         testRun.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
