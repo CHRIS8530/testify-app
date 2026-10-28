@@ -44,7 +44,7 @@ export function TestCaseEditor({ projectId, caseId, onSave, onCancel }: TestCase
     try {
       const body = { title, steps, expectedResult, priority, preconditions };
       if (caseId) {
-        await apiCall(`/api/v1/projects/${projectId}/test-cases/${caseId}`, { method: 'PATCH', body: JSON.stringify(body) });
+        await apiCall(`/api/v1/projects/${projectId}/test-cases/${caseId}`, { method: 'PUT', body: JSON.stringify(body) });
       } else {
         await apiCall(`/api/v1/projects/${projectId}/test-cases`, { method: 'POST', body: JSON.stringify(body) });
       }
