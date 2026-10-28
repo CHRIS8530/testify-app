@@ -61,7 +61,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setCurrentUser(data.user);
   };
 
-  const register = async (email: string, username: string, password: string) => {
+    const register = async (email: string, username: string, password: string) => {
     const response = await fetch(`${API_BASE_URL}/api/v1/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -72,9 +72,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const error = await response.json();
       throw new Error(error.error?.message || 'Registration failed');
     }
-    const data: AuthResponse = await response.json();
-    setAccessToken(data.accessToken);
-    setCurrentUser(data.user);
+    // The register endpoint returns the new user but no token, so sign in straight away.
+    await login(email, password);
   };
 
   const logout = async () => {
