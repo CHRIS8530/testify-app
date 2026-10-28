@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import type { User, AuthResponse } from '../types/index';
 import { API_BASE_URL } from '../config';
 
@@ -10,6 +10,7 @@ export interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  refreshAccessToken: () => Promise<string | null>;
 }
 
 export const AuthContext = createContext<AuthContextType | null>(null);
@@ -22,6 +23,39 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const refreshInFlight = useRef<Promise<string | null> | null>(null);
+
+  // Asks the API for a new access token using the refresh cookie.
+  // Calls made while a refresh is already running share that same refresh, because
+  // every refresh retires the old cookie and a second one would fail.
+  const refreshAccessToken = useCallback((): Promise<string | null> => {
+    if (refreshInFlight.current) return refreshInFlight.current;
+
+    const attempt = (async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+        if (!response.ok) {
+          setAccessToken(null);
+          setCurrentUser(null);
+          return null;
+        }
+        const data: AuthResponse = await response.json();
+        setAccessToken(data.accessToken);
+        setCurrentUser(data.user);
+        return data.accessToken;
+      } catch {
+        return null;
+      } finally {
+        refreshInFlight.current = null;
+      }
+    })();
+
+    refreshInFlight.current = attempt;
+    return attempt;
+  }, []);
 
   // Silent refresh on app load
   useEffect(() => {
@@ -61,7 +95,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setCurrentUser(data.user);
   };
 
-    const register = async (email: string, username: string, password: string) => {
+  const register = async (email: string, username: string, password: string) => {
     const response = await fetch(`${API_BASE_URL}/api/v1/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -99,6 +133,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         login,
         register,
         logout,
+        refreshAccessToken,
       }}
     >
       {children}
