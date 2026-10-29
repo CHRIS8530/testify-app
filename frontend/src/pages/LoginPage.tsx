@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
 export function LoginPage() {
@@ -73,11 +73,11 @@ export function LoginPage() {
         </button>
       </form>
 
-      <p style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+            <p style={{ marginTop: '1.5rem', textAlign: 'center' }}>
         Don't have an account?{' '}
-        <a href="/register" style={{ color: '#0066cc', textDecoration: 'none' }}>
+        <Link to="/register" style={{ color: '#0066cc', textDecoration: 'none' }}>
           Sign up
-        </a>
+        </Link>
       </p>
     </div>
   );
