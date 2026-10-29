@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 
 export function RegisterPage() {
@@ -12,13 +12,29 @@ export function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
 
+  // These rules and messages mirror AuthController.Register on the server.
   const validateForm = () => {
-    if (!email || !username || !password || !passwordConfirm) {
+    if (!email.trim() || !username.trim() || !password || !passwordConfirm) {
       setError('All fields are required');
+      return false;
+    }
+    if (!email.includes('@')) {
+      setError('Email is required and must be valid');
+      return false;
+    }
+    if (username.length < 3 || username.length > 50) {
+      setError('Username must be 3-50 characters');
       return false;
     }
     if (password.length < 8) {
       setError('Password must be at least 8 characters');
+      return false;
+    }
+    const hasUpper = /\p{Lu}/u.test(password);
+    const hasDigit = /\p{Nd}/u.test(password);
+    const hasSpecial = /[^\p{L}\p{N}]/u.test(password);
+    if (!hasUpper || !hasDigit || !hasSpecial) {
+      setError('Password must contain uppercase, number, and special character');
       return false;
     }
     if (password !== passwordConfirm) {
@@ -117,11 +133,11 @@ export function RegisterPage() {
         </button>
       </form>
 
-      <p style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+            <p style={{ marginTop: '1.5rem', textAlign: 'center' }}>
         Already have an account?{' '}
-        <a href="/login" style={{ color: '#0066cc', textDecoration: 'none' }}>
+        <Link to="/login" style={{ color: '#0066cc', textDecoration: 'none' }}>
           Sign in
-        </a>
+        </Link>
       </p>
     </div>
   );

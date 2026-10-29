@@ -20,20 +20,22 @@ Built for an AI-assisted engineering challenge. Every significant decision is re
 - `GET /api/v1/projects` — List all projects
 - `POST /api/v1/projects` — Create project
 - `GET /api/v1/projects/:id` — Get project details
-- `PATCH /api/v1/projects/:id` — Update project
+- `PUT /api/v1/projects/:id` — Update project
 - `DELETE /api/v1/projects/:id` — Delete project
 
 ### Test Cases
 - `GET /api/v1/projects/:id/test-cases` — List test cases
 - `POST /api/v1/projects/:id/test-cases` — Create test case
 - `GET /api/v1/projects/:id/test-cases/:caseId` — Get test case
-- `PATCH /api/v1/projects/:id/test-cases/:caseId` — Update test case
+- `PUT /api/v1/projects/:id/test-cases/:caseId` — Update test case
 - `DELETE /api/v1/projects/:id/test-cases/:caseId` — Delete test case
 
 ### Test Runs
 - `GET /api/v1/projects/:id/test-runs` — List test runs
 - `POST /api/v1/projects/:id/test-runs` — Create test run
+- `PUT /api/v1/projects/:id/test-runs/:runId` — Update test run status
 - `DELETE /api/v1/projects/:id/test-runs/:runId` — Delete test run
+
 
 ### Test Results
 - `GET /api/v1/projects/:id/test-runs/:runId/results` — Get results for run
@@ -43,7 +45,7 @@ Built for an AI-assisted engineering challenge. Every significant decision is re
 ### Defects
 - `GET /api/v1/projects/:id/defects` — List defects
 - `POST /api/v1/projects/:id/defects` — Create defect
-- `PATCH /api/v1/projects/:id/defects/:defectId` — Update defect
+- `PUT /api/v1/projects/:id/defects/:defectId` — Update defect
 - `DELETE /api/v1/projects/:id/defects/:defectId` — Delete defect
 
 ### Dashboard

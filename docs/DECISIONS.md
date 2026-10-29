@@ -1133,6 +1133,48 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 38: The Sign In Flow Works End To End In The Browser
+
+**Date:** October 29, 2026
+
+**Context:** CODE_REVIEW.md 3.4, 3.5 and 3.10. After the API fixes, the screens still did not work with them. Registering bounced you to the login page, an expired token threw "please log in again", editing a test case returned 405, the register form accepted passwords the server rejects, the links reloaded the page and wiped the in-memory token, and the page-load refresh ran twice.
+
+**What I asked the AI:** For six small fixes, one at a time, each with a check I could run and a browser test I could see.
+
+**What it gave me:**
+1. Register signs in straight after the account is created.
+2. `refreshAccessToken` in AuthContext, shared between callers, and a `useApi` that refreshes and retries once on a 401.
+3. The test case editor sends PUT, and the README lists the real verbs.
+4. The register form uses the same rules and messages as the server.
+5. `<Link>` instead of `<a href>` on the login and register pages.
+6. The page-load refresh goes through `refreshAccessToken`, so React StrictMode's second run shares the first request.
+
+**What I changed and why:**
+1. Kept the API as it was. Making register return a token would have created a second place that issues tokens, so the frontend calls login after a successful register instead.
+2. `useApi` returns nothing for a 204 response. A successful delete has no body, and parsing it as JSON threw an error.
+3. The password check on the form uses Unicode character classes (`\p{Lu}`, `\p{Nd}`), because the server uses `char.IsUpper` and `char.IsDigit`, which also accept non-ASCII characters. A plain `[A-Z]` would have disagreed with the server on some input.
+4. Tested the 401 retry for real instead of trusting the code: shortened the token to 1 minute, waited, then went Back and Forward in the browser. Back and Forward move around the app without reloading the page, so the page keeps its old token. The Network tab showed `projects` 401, `refresh` 200, `projects` 200. Then I reverted the change with `git checkout` and confirmed the working tree was clean.
+5. Tested the StrictMode fix by counting `refresh` requests in the Network tab after a reload: one, not two.
+6. Fix 5 went in with leftover lines from the old link and failed the type check. I repaired it before pushing with `git commit --amend`, and re-ran the type check, lint, build and the browser test on the repaired code.
+
+**What I did not understand at first:**
+- The refresh cookie is single use. The server retires it the moment it is used, so two refresh calls at the same moment cannot both succeed. That is why concurrent requests must share one refresh instead of each starting their own.
+- React StrictMode runs effects twice in development on purpose, to expose side effects that are not safe to repeat. It does not happen in a production build, but a rotating token makes the double run visible.
+- A plain `<a href>` is a full page navigation. Anything held in memory is lost, including the access token, which is the reason the token lives in memory and not in localStorage. A router `Link` changes the view without a reload.
+- PUT replaces the whole resource and PATCH changes part of it. The editor always sends every field, so PUT matches what it does, and the API already used PUT. The mismatch was between the frontend, the README and the API, and the API was the one that was right.
+- A commit can succeed while the checks fail. Git does not run the type check or the build, so a clean `git commit` says nothing about whether the code compiles. Reading the output of each check before committing is part of the workflow, and `--amend` is only safe because nothing had been pushed yet.
+- A 204 response has no body, so calling `response.json()` on it throws even though the request worked.
+
+**Where the AI cost me time:**
+- The instructions for fix 5 replaced one block but did not make clear that the old lines had to be removed, so two leftover lines broke both pages.
+- The instructions for fix 6 said to delete a block and paste a new one, but not where to paste it. I now ask for whole files to paste over, so there is nothing to place.
+
+**Result:** RESOLVED for the frontend sign in flow. Limits: the retry happens once per call, the browser checks were done by hand, and the Playwright tests have not been updated for the new register rules (`auth.spec.ts` still uses a password with no special character). That belongs to the testing PR.
+
+**Source verification:** React documentation on StrictMode (effects run twice in development). React Router documentation for `Link`. OWASP session management guidance on rotating tokens. MDN on HTTP 204 (no content) responses.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: October 27, 2026
+Last updated: October 29, 2026
