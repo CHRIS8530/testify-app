@@ -1,0 +1,161 @@
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.toolbar h2 {
+  font-size: 1.25rem;
+  color: #0f2a43;
+}
+
+.run-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.run-row {
+  background: #fff;
+  border: 1px solid #dde4ec;
+  border-radius: 10px;
+  padding: 1.1rem 1.25rem;
+  display: grid;
+  grid-template-columns: 1fr 220px;
+  gap: 1.25rem;
+  align-items: center;
+}
+
+.run-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.run-title {
+  font-weight: 600;
+  color: #0f2a43;
+}
+
+.run-meta {
+  font-size: 0.8rem;
+  color: #5b6b7b;
+  margin-top: 0.2rem;
+}
+
+.run-counts {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.65rem;
+}
+
+.count-chip {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+}
+
+.chip-pass { background: #e6f5ec; color: #1b6b3a; }
+.chip-fail { background: #fdecea; color: #a32018; }
+.chip-blocked { background: #fff3dc; color: #8a5a00; }
+.chip-notrun { background: #edf1f5; color: #4a5b6c; }
+
+.status-badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+}
+
+.status-in-progress { background: #e3f0ff; color: #0a4a94; }
+.status-complete { background: #e6f5ec; color: #1b6b3a; }
+
+.pass-rate-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: #4a5b6c;
+  margin-bottom: 0.35rem;
+}
+
+.progress {
+  height: 8px;
+  background: #e6ebf1;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #2e9e5b;
+}
+
+.picker {
+  margin-bottom: 1.5rem;
+  padding: 1.25rem;
+}
+
+.picker-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.picker-head h3 {
+  color: #0f2a43;
+}
+
+.pick-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #edf1f5;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.pick-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid #edf1f5;
+  cursor: pointer;
+}
+
+.pick-row:last-child {
+  border-bottom: none;
+}
+
+.pick-row:hover {
+  background: #f4f8fd;
+}
+
+.pick-row input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  flex: none;
+}
+
+.pick-title {
+  flex: 1;
+}
+
+.pick-priority {
+  font-size: 0.75rem;
+  color: #5b6b7b;
+}
+
+@media (max-width: 720px) {
+  .run-row {
+    grid-template-columns: 1fr;
+  }
+}
