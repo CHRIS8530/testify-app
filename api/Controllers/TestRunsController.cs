@@ -27,18 +27,60 @@ public class TestRunsController : ControllerBase
         return userIdClaim != null ? Guid.Parse(userIdClaim) : Guid.Empty;
     }
 
+    // One row per run with the number of results in each outcome, counted by the database.
+    private IQueryable<RunCounts> RunsWithCounts(Guid projectId)
+    {
+        return _db.TestRuns
+            .Where(tr => tr.ProjectId == projectId)
+            .Select(tr => new RunCounts
+            {
+                Id = tr.Id,
+                ProjectId = tr.ProjectId,
+                Status = tr.Status,
+                CreatedAt = tr.CreatedAt,
+                UpdatedAt = tr.UpdatedAt,
+                CompletedAt = tr.CompletedAt,
+                Total = tr.Results.Count,
+                Passed = tr.Results.Count(r => r.Result == "Pass"),
+                Failed = tr.Results.Count(r => r.Result == "Fail"),
+                Blocked = tr.Results.Count(r => r.Result == "Blocked"),
+                NotRun = tr.Results.Count(r => r.Result == "Not Run")
+            });
+    }
+
+    // The pass rate is worked out in one place so every screen shows the same number.
+    private static object ToSummary(RunCounts run)
+    {
+        return new
+        {
+            run.Id,
+            run.ProjectId,
+            run.Status,
+            run.CreatedAt,
+            run.UpdatedAt,
+            run.CompletedAt,
+            run.Total,
+            run.Passed,
+            run.Failed,
+            run.Blocked,
+            run.NotRun,
+            PassRate = RunStats.PassRate(run.Passed, run.Total)
+        };
+    }
+
     [HttpGet]
     public async Task<IActionResult> GetTestRuns(Guid projectId, [FromQuery] int limit = 50, [FromQuery] int offset = 0)
     {
         var (denied, _) = await this.RequireProjectAccessAsync(_db, projectId, ProjectRole.Viewer);
         if (denied is not null) return denied;
-        var testRuns = await _db.TestRuns
-            .Where(tr => tr.ProjectId == projectId)
+
+        var runs = await RunsWithCounts(projectId)
+            .OrderByDescending(r => r.CreatedAt)
             .Skip(offset)
             .Take(limit)
             .ToListAsync();
 
-        return Ok(testRuns);
+        return Ok(runs.Select(ToSummary));
     }
 
     [HttpGet("{id}")]
@@ -46,11 +88,12 @@ public class TestRunsController : ControllerBase
     {
         var (denied, _) = await this.RequireProjectAccessAsync(_db, projectId, ProjectRole.Viewer);
         if (denied is not null) return denied;
-        var testRun = await _db.TestRuns.FirstOrDefaultAsync(tr => tr.Id == id && tr.ProjectId == projectId);
-        if (testRun == null)
+
+        var run = await RunsWithCounts(projectId).FirstOrDefaultAsync(r => r.Id == id);
+        if (run == null)
             return NotFound();
 
-        return Ok(testRun);
+        return Ok(ToSummary(run));
     }
 
     [HttpPost]
@@ -155,6 +198,21 @@ public class TestRunsController : ControllerBase
         );
 
         return NoContent();
+    }
+
+    private class RunCounts
+    {
+        public Guid Id { get; set; }
+        public Guid ProjectId { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+        public DateTime UpdatedAt { get; set; }
+        public DateTime? CompletedAt { get; set; }
+        public int Total { get; set; }
+        public int Passed { get; set; }
+        public int Failed { get; set; }
+        public int Blocked { get; set; }
+        public int NotRun { get; set; }
     }
 }
 
