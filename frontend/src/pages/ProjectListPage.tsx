@@ -1,13 +1,24 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
+import { useAuth } from '../hooks/useAuth';
+import { AppHeader } from '../components/AppHeader';
 import type { Project } from '../types/index';
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
 
 export function ProjectListPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const { apiCall } = useApi();
+  const { currentUser } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -26,32 +37,72 @@ export function ProjectListPage() {
     fetchProjects();
   }, []);
 
-  if (isLoading) return <div style={{ textAlign: 'center', padding: '2rem' }}>Loading projects...</div>;
+  if (isLoading) {
+    return (
+      <>
+        <AppHeader />
+        <div className="page text-center muted">Loading projects...</div>
+      </>
+    );
+  }
 
   return (
-    <div style={{ padding: '2rem' }} className="container">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <h1>Projects</h1>
-        <button className="primary" onClick={() => navigate('/projects/new')}>Create Project</button>
-      </div>
-
-      {error && <div style={{ backgroundColor: '#ffebee', color: '#d32f2f', padding: '1rem', borderRadius: '4px', marginBottom: '1rem' }}>{error}</div>}
-
-      {projects.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
-          <p>No projects yet. Create one to get started.</p>
+    <>
+      <AppHeader />
+      <main className="page">
+        <div className="page-title-row">
+          <div>
+            <h1 className="page-title">Projects</h1>
+            <p className="muted">
+              {projects.length === 1
+                ? '1 project you own or belong to'
+                : `${projects.length} projects you own or belong to`}
+            </p>
+          </div>
+          <button className="primary" onClick={() => navigate('/projects/new')}>
+            + Create project
+          </button>
         </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-          {projects.map((project) => (
-            <div key={project.id} className="card" style={{ cursor: 'pointer' }} onClick={() => navigate(`/projects/${project.id}`)}>
-              <h3>{project.name}</h3>
-              <p style={{ color: '#666', marginTop: '0.5rem' }}>{project.description}</p>
-              <small style={{ color: '#999', marginTop: '1rem', display: 'block' }}>Created {new Date(project.createdAt).toLocaleDateString()}</small>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+
+        {error && <div className="error-banner">{error}</div>}
+
+        {projects.length === 0 && !error ? (
+          <div className="empty-state">
+            <h2 style={{ color: '#0f2a43', marginBottom: '0.5rem' }}>No projects yet</h2>
+            <p className="muted" style={{ marginBottom: '1.25rem' }}>
+              A project holds your test cases, test runs and defects. Create one to get started.
+            </p>
+            <button className="primary" onClick={() => navigate('/projects/new')}>
+              + Create project
+            </button>
+          </div>
+        ) : (
+          <div className="project-grid">
+            {projects.map((project) => (
+              <Link key={project.id} to={`/projects/${project.id}`} className="project-card">
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    gap: '0.75rem',
+                  }}
+                >
+                  <h2>{project.name}</h2>
+                  {project.ownerId === currentUser?.id && (
+                    <span className="badge badge-owner">Owner</span>
+                  )}
+                </div>
+                <p>{project.description}</p>
+                <div className="project-card-footer">
+                  <span>Created {formatDate(project.createdAt)}</span>
+                  <span className="project-open">Open &rarr;</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </main>
+    </>
   );
 }
