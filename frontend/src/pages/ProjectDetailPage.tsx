@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
+import { AppHeader } from '../components/AppHeader';
 import type { Project } from '../types/index';
 import { TabNav } from '../components/TabNav';
 import { TestCasesTab } from './tabs/TestCasesTab';
@@ -15,7 +16,6 @@ export function ProjectDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const { apiCall } = useApi();
-  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchProject = async () => {
@@ -32,9 +32,30 @@ export function ProjectDetailPage() {
     fetchProject();
   }, [id]);
 
-  if (isLoading) return <div style={{ textAlign: 'center', padding: '2rem' }}>Loading project...</div>;
-  if (error) return <div style={{ padding: '2rem', color: '#d32f2f' }}>Error: {error}</div>;
-  if (!project) return <div style={{ padding: '2rem', color: '#d32f2f' }}>Project not found</div>;
+  if (isLoading) {
+    return (
+      <>
+        <AppHeader />
+        <div className="page text-center muted">Loading project...</div>
+      </>
+    );
+  }
+
+  if (error || !project) {
+    return (
+      <>
+        <AppHeader />
+        <main className="page">
+          <Link to="/projects" className="back-link">
+            &larr; Projects
+          </Link>
+          <div className="error-banner" style={{ marginTop: '1rem' }}>
+            {error || 'Project not found'}
+          </div>
+        </main>
+      </>
+    );
+  }
 
   const tabs = [
     { id: 'cases', label: 'Test Cases' },
@@ -44,19 +65,26 @@ export function ProjectDetailPage() {
   ];
 
   return (
-    <div style={{ padding: '2rem' }} className="container">
-      <button onClick={() => navigate('/projects')} style={{ marginBottom: '1rem', background: '#e0e0e0', color: '#333', padding: '0.5rem 1rem', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-        ← Back to Projects
-      </button>
-      <h1>{project.name}</h1>
-      <p style={{ color: '#666', marginBottom: '2rem' }}>{project.description}</p>
+    <>
+      <AppHeader />
+      <main className="page">
+        <Link to="/projects" className="back-link">
+          &larr; Projects
+        </Link>
+        <h1 className="page-title" style={{ marginTop: '0.9rem' }}>
+          {project.name}
+        </h1>
+        <p className="muted" style={{ marginBottom: '2rem' }}>
+          {project.description}
+        </p>
 
-      <TabNav tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
+        <TabNav tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
 
-      {activeTab === 'cases' && <TestCasesTab projectId={project.id} />}
-      {activeTab === 'runs' && <TestRunsTab projectId={project.id} />}
-      {activeTab === 'defects' && <DefectsTab projectId={project.id} />}
-      {activeTab === 'dashboard' && <DashboardTab projectId={project.id} />}
-    </div>
+        {activeTab === 'cases' && <TestCasesTab projectId={project.id} />}
+        {activeTab === 'runs' && <TestRunsTab projectId={project.id} />}
+        {activeTab === 'defects' && <DefectsTab projectId={project.id} />}
+        {activeTab === 'dashboard' && <DashboardTab projectId={project.id} />}
+      </main>
+    </>
   );
 }
