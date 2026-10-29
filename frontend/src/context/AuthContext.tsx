@@ -57,27 +57,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return attempt;
   }, []);
 
-  // Silent refresh on app load
+  // Silent refresh on app load. In development React runs this effect twice (StrictMode),
+  // so it goes through refreshAccessToken, which shares one request between both runs.
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
-          method: 'POST',
-          credentials: 'include',
-        });
-        if (response.ok) {
-          const data: AuthResponse = await response.json();
-          setAccessToken(data.accessToken);
-          setCurrentUser(data.user);
-        }
-      } catch (err) {
-        console.error('Auth init failed:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    initAuth();
-  }, []);
+    refreshAccessToken().finally(() => setIsLoading(false));
+  }, [refreshAccessToken]);
 
   const login = async (email: string, password: string) => {
     const response = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
