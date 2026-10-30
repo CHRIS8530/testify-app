@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
+import type { FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
 import { AppHeader } from '../components/AppHeader';
 import '../styles/runs.css';
 import '../styles/run-page.css';
+import '../styles/defects.css';
 
 type Outcome = 'Pass' | 'Fail' | 'Blocked' | 'Not Run';
 
 const OUTCOMES: Outcome[] = ['Pass', 'Fail', 'Blocked', 'Not Run'];
+const SEVERITIES = ['Low', 'Medium', 'High', 'Critical'];
 
 const OUTCOME_CLASS: Record<Outcome, string> = {
   Pass: 'outcome-pass',
@@ -30,6 +33,11 @@ interface ResultRow {
   notes: string | null;
 }
 
+interface DefectLink {
+  id: string;
+  title: string;
+}
+
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString('en-GB', {
     day: 'numeric',
@@ -45,22 +53,35 @@ export function TestRunPage() {
   const [run, setRun] = useState<RunInfo | null>(null);
   const [results, setResults] = useState<ResultRow[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [defectByResult, setDefectByResult] = useState<Record<string, DefectLink>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
   const [isChangingStatus, setIsChangingStatus] = useState(false);
+  const [raisingId, setRaisingId] = useState<string | null>(null);
+  const [defectForm, setDefectForm] = useState({ title: '', description: '', severity: 'Medium' });
+  const [defectError, setDefectError] = useState('');
+  const [isRaising, setIsRaising] = useState(false);
   const { apiCall } = useApi();
 
   useEffect(() => {
     const load = async () => {
       try {
         if (!projectId || !runId) throw new Error('Test run not found');
-        const [runData, resultData] = await Promise.all([
+        const [runData, resultData, defectData] = await Promise.all([
           apiCall(`/api/v1/projects/${projectId}/test-runs/${runId}`),
           apiCall(`/api/v1/projects/${projectId}/test-runs/${runId}/results`),
+          apiCall(`/api/v1/projects/${projectId}/defects?limit=200`),
         ]);
         setRun(runData);
         setResults(Array.isArray(resultData) ? resultData : []);
+        const links: Record<string, DefectLink> = {};
+        (Array.isArray(defectData) ? defectData : []).forEach(
+          (d: { id: string; title: string; testRunResultId: string }) => {
+            links[d.testRunResultId] = { id: d.id, title: d.title };
+          }
+        );
+        setDefectByResult(links);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load the test run');
       } finally {
@@ -152,6 +173,45 @@ export function TestRunPage() {
     }
   };
 
+  const openDefectForm = (row: ResultRow) => {
+    setRaisingId(row.id);
+    setDefectForm({ title: row.testCaseTitle, description: noteFor(row), severity: 'Medium' });
+    setDefectError('');
+  };
+
+  // Same rule and message as DefectsController.CreateDefect on the server.
+  const raiseDefect = async (row: ResultRow, e: FormEvent) => {
+    e.preventDefault();
+    setDefectError('');
+    if (!defectForm.title.trim()) {
+      setDefectError('Title is required');
+      return;
+    }
+
+    setIsRaising(true);
+    try {
+      const created = await apiCall(`/api/v1/projects/${projectId}/defects`, {
+        method: 'POST',
+        body: JSON.stringify({
+          testCaseId: row.testCaseId,
+          testRunResultId: row.id,
+          title: defectForm.title.trim(),
+          description: defectForm.description.trim(),
+          severity: defectForm.severity,
+        }),
+      });
+      setDefectByResult((current) => ({
+        ...current,
+        [row.id]: { id: created.id, title: created.title },
+      }));
+      setRaisingId(null);
+    } catch (err) {
+      setDefectError(err instanceof Error ? err.message : 'Failed to raise the defect');
+    } finally {
+      setIsRaising(false);
+    }
+  };
+
   return (
     <>
       <AppHeader />
@@ -233,6 +293,7 @@ export function TestRunPage() {
           <div className="result-list">
             {results.map((row) => {
               const locked = isComplete || savingId === row.id;
+              const defect = defectByResult[row.id];
               return (
                 <div key={row.id} className="result-card">
                   <div className="result-top">
@@ -266,6 +327,84 @@ export function TestRunPage() {
                       onBlur={() => handleNotesBlur(row)}
                     />
                   </div>
+
+                  {row.result === 'Fail' && (
+                    <div className="defect-area">
+                      {defect ? (
+                        <Link to={`/projects/${projectId}?tab=defects`} className="defect-chip">
+                          Defect raised: {defect.title} &rarr;
+                        </Link>
+                      ) : raisingId === row.id ? (
+                        <form className="defect-form" onSubmit={(e) => raiseDefect(row, e)}>
+                          {defectError && <div className="error-banner">{defectError}</div>}
+                          <div className="defect-form-row">
+                            <div>
+                              <label htmlFor={`defect-title-${row.id}`}>Title</label>
+                              <input
+                                id={`defect-title-${row.id}`}
+                                type="text"
+                                value={defectForm.title}
+                                onChange={(e) =>
+                                  setDefectForm((current) => ({ ...current, title: e.target.value }))
+                                }
+                                disabled={isRaising}
+                              />
+                            </div>
+                            <div>
+                              <label htmlFor={`defect-severity-${row.id}`}>Severity</label>
+                              <select
+                                id={`defect-severity-${row.id}`}
+                                value={defectForm.severity}
+                                onChange={(e) =>
+                                  setDefectForm((current) => ({ ...current, severity: e.target.value }))
+                                }
+                                disabled={isRaising}
+                              >
+                                {SEVERITIES.map((s) => (
+                                  <option key={s} value={s}>
+                                    {s}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                          <div>
+                            <label htmlFor={`defect-desc-${row.id}`}>Description</label>
+                            <textarea
+                              id={`defect-desc-${row.id}`}
+                              rows={3}
+                              value={defectForm.description}
+                              onChange={(e) =>
+                                setDefectForm((current) => ({ ...current, description: e.target.value }))
+                              }
+                              disabled={isRaising}
+                            />
+                          </div>
+                          <div className="defect-form-actions">
+                            <button type="submit" className="primary small" disabled={isRaising}>
+                              {isRaising ? 'Raising...' : 'Raise defect'}
+                            </button>
+                            <button
+                              type="button"
+                              className="secondary small"
+                              onClick={() => setRaisingId(null)}
+                              disabled={isRaising}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </form>
+                      ) : (
+                        <button
+                          type="button"
+                          className="secondary small"
+                          onClick={() => openDefectForm(row)}
+                        >
+                          Raise defect
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
