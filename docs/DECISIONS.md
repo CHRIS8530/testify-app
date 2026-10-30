@@ -1215,6 +1215,41 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 40: Defects Are Raised From A Failed Result And Managed In Their Own Tab
+
+**Date:** October 30, 2026
+
+**Context:** CODE_REVIEW.md 1.2. The Defects tab was a stub that said "coming soon". The brief says a defect is raised from a failed test case inside a run, links back to that case and run, and has a severity and a status (Open, In Progress, Resolved, Closed). The API for all of that already existed and was tested (Decisions 34 and 37), but nothing in the app could use it.
+
+**What I asked the AI:** For a Defects feature in the same look as the rest of the app: a way to raise a defect from a failed result on the run page, a Defects tab to list defects and change their status, and any API change needed first, built tests first.
+
+**What it gave me:**
+1. A one line API change: the defects list is now ordered newest first, with a test written before the change.
+2. A Defects tab with a severity badge (Critical, High, Medium, Low), the test case each defect came from, the date, a status dropdown that saves straight away, and a filter by status.
+3. A Raise defect button on every failed row of the run page. It opens a form with the title filled from the test case, the description filled from the note I wrote on the result, and a severity choice.
+4. Once raised, the failed row shows a "Defect raised" link to the Defects tab, so the same result cannot be raised twice by accident.
+
+**What I changed and why:**
+1. Wrote the list order test first and ran it against the unchanged controller, so I saw it fail before the one line change made it pass (67 tests in total).
+2. The form checks the title is not blank with the same message as the server ("Title is required"). Severity is a dropdown of the four allowed values, so it cannot be wrong.
+3. The Defects tab looks up test case titles from the test cases list, because the defects endpoint only returns the id of the case. That is one extra request, and it keeps the API unchanged.
+4. Kept the colours from the existing palette and added no libraries.
+
+**What I did not understand at first:**
+- A defect points at two things: the test case, and the specific result of that case in one run. The result is what proves the case failed, so the API checks that it belongs to this project and really is Fail. The test case id alone would not be enough.
+- Without an `OrderBy`, `Skip` and `Take` give no promised order, so "newest first" is not something the database does for free. The API log had been printing a warning about this on the test cases list too.
+- The run page cannot ask the API "does this result already have a defect?", because there is no such filter. It loads the project's defects and matches them by result id in the browser. That works for a normal project, but it only looks at the first 200 defects, so a very large project would miss some links. A filter on the API is the proper fix.
+- `PUT` on a defect only changes the status. The title, description and severity cannot be edited after raising, which is a gap rather than a decision.
+- The defect table has a `ResolvedAt` column, but nothing sets it when a defect moves to Resolved. The brief does not ask for it, but a real tracker would want it.
+
+**Where the AI cost me time:** Nothing significant on this change. The browser checks all passed.
+
+**Result:** RESOLVED for raising and managing defects. Limits: defects cannot be edited beyond their status, the "already raised" lookup only covers the first 200 defects, a defect link only shows while the result is still Fail, `ResolvedAt` is never set, and there is no Playwright test yet (testing PR).
+
+**Source verification:** EF Core documentation on ordering with `Skip` and `Take` (the paging warning). MDN on the HTML `select` element, and WAI-ARIA guidance on labelling form controls.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
 Last updated: October 30, 2026
