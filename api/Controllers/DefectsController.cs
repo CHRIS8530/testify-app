@@ -39,6 +39,7 @@ public class DefectsController : ControllerBase
 
         var defects = await _db.Defects
             .Where(d => testCaseIds.Contains(d.TestCaseId))
+            .OrderByDescending(d => d.CreatedAt)
             .Skip(offset)
             .Take(limit)
             .ToListAsync();
