@@ -1250,6 +1250,41 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 41: The Dashboard Uses One Pass Rate Rule And The Latest Run
+
+**Date:** October 31, 2026
+
+**Context:** CODE_REVIEW.md 1.2. The Dashboard tab was the last stub in the app. The brief asks for four numbers per project: total cases, runs completed, current pass rate and open defects by severity. The existing dashboard endpoint had no "runs completed" number, calculated its own pass rate, and did its own access check.
+
+**What I asked the AI:** To read the existing dashboard controller before designing the screen, say what was missing or wrong, fix the API tests first, and then build the tab in the same look as the rest of the app.
+
+**What it gave me:**
+1. Three gaps found by reading the controller: no completed runs count, a pass rate that rounds differently from the run list, and "current pass rate" not being defined anywhere.
+2. 5 new API tests (72 in total), written before the change.
+3. A rewritten `DashboardController`: it counts completed runs, returns the latest run with its own counts and pass rate, and uses `RunStats.PassRate` for every percentage.
+4. A Dashboard tab with four stat cards, a Latest run panel with the pass rate bar and result chips, open defects by severity as coloured bars, and the five most recent defects.
+
+**What I changed and why:**
+1. Defined "current pass rate" as the pass rate of the latest run, because that is the first thing a tester asks. The pass rate across all runs is still returned and shown as a smaller line under the panel.
+2. Replaced the controller's own membership check with the shared `RequireProjectAccessAsync` helper, so 401, 404 and 403 behave the same as every other endpoint. This also removes the inconsistency from review 2.4, where the dashboard was the only place that checked ownership differently.
+3. The open defects query now joins through the test case in the database. Before, it loaded every test case id into a list and filtered with `Contains`.
+4. Wrote the tests first and ran them against the old controller: 4 of the 5 failed. The fifth, open defects by severity, passed before and after on purpose, to prove the rewrite did not break something that already worked.
+5. Left the chart as plain CSS bars. No chart library, so there is nothing new to keep up to date or scan for vulnerabilities.
+
+**What I did not understand at first:**
+- "Current pass rate" can mean at least two different things: the latest run, or every result across all runs. The brief does not say which. Naming the choice and showing the other number as a secondary line kept both visible and avoided silently picking one.
+- The dashboard rounded with .NET's default, which sends exact halves to the nearest even number, so 12.5 shows as 12 here while the run list shows 13. It is the same bug as Decision 39 in a second place. The fix is not to copy the rounding line into a third place, but to route every percentage through one function.
+- A filter on a related entity such as `d.TestCase.ProjectId` becomes a SQL join, so the database does the filtering instead of the application loading ids first.
+- The response contains a `latest_run` that is null for a project with no runs. The screen has to handle that case on purpose, or it would crash on a brand new project.
+
+**Where the AI cost me time:** Nothing significant on this change. The browser checks all passed.
+
+**Result:** RESOLVED. Every screen in the brief now exists. Limits: the dashboard has no trend over time (a stretch goal in the brief), `defects_by_status` is returned but not shown, recent defects are not links, and there is no Playwright test yet (testing PR).
+
+**Source verification:** Microsoft Learn on `Math.Round` and `MidpointRounding` (the default sends halves to even). EF Core documentation on how navigation properties in a filter translate to joins. The challenge brief, section 2, for the four dashboard metrics.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: October 30, 2026
+Last updated: October 31, 2026
