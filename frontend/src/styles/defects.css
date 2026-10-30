@@ -1,0 +1,131 @@
+.defect-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.defect-row {
+  background: #fff;
+  border: 1px solid #dde4ec;
+  border-radius: 10px;
+  padding: 1.1rem 1.25rem;
+  display: grid;
+  grid-template-columns: 1fr 190px;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.defect-title {
+  font-weight: 600;
+  color: #0f2a43;
+}
+
+.defect-meta {
+  font-size: 0.8rem;
+  color: #5b6b7b;
+  margin-top: 0.2rem;
+}
+
+.defect-desc {
+  margin-top: 0.6rem;
+  color: #4a5b6c;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+}
+
+.defect-side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+
+.severity {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+}
+
+.severity-critical { background: #fdecea; color: #a32018; }
+.severity-high { background: #ffe9d6; color: #8a4300; }
+.severity-medium { background: #fff3dc; color: #7a5200; }
+.severity-low { background: #edf1f5; color: #4a5b6c; }
+
+.status-select {
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.9rem;
+}
+
+.filter-select {
+  width: auto;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+button.small {
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
+}
+
+.defect-area {
+  margin-top: 0.8rem;
+}
+
+.defect-form {
+  border: 1px solid #dde4ec;
+  border-radius: 8px;
+  padding: 1rem;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.defect-form label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-bottom: 0.3rem;
+}
+
+.defect-form-row {
+  display: grid;
+  grid-template-columns: 1fr 160px;
+  gap: 0.8rem;
+}
+
+.defect-form-actions {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.defect-chip {
+  display: inline-block;
+  background: #e3f0ff;
+  color: #0a4a94;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  text-decoration: none;
+}
+
+.defect-chip:hover {
+  background: #cfe3fb;
+}
+
+@media (max-width: 720px) {
+  .defect-row,
+  .defect-form-row {
+    grid-template-columns: 1fr;
+  }
+}
