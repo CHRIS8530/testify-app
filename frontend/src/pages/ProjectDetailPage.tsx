@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { useApi } from '../hooks/useApi';
 import { AppHeader } from '../components/AppHeader';
 import type { Project } from '../types/index';
@@ -9,10 +9,16 @@ import { TestRunsTab } from './tabs/TestRunsTab';
 import { DefectsTab } from './tabs/DefectsTab';
 import { DashboardTab } from './tabs/DashboardTab';
 
+const TAB_IDS = ['cases', 'runs', 'defects', 'dashboard'];
+
 export function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
   const [project, setProject] = useState<Project | null>(null);
-  const [activeTab, setActiveTab] = useState('cases');
+  const [activeTab, setActiveTab] = useState(
+    requestedTab && TAB_IDS.includes(requestedTab) ? requestedTab : 'cases'
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const { apiCall } = useApi();

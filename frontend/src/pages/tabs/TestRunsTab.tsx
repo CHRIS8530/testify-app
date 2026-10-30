@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useApi } from '../../hooks/useApi';
 import '../../styles/runs.css';
+import '../../styles/run-page.css';
 
 interface TestRunSummary {
   id: string;
@@ -232,6 +234,9 @@ export function TestRunsTab({ projectId }: { projectId: string }) {
                 >
                   <div className="progress-fill" style={{ width: `${run.passRate}%` }} />
                 </div>
+                <Link to={`/projects/${projectId}/test-runs/${run.id}`} className="run-open">
+                  {run.status === 'Complete' ? 'View run' : 'Execute run'} &rarr;
+                </Link>
               </div>
             </div>
           ))}
