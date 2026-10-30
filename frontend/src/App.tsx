@@ -6,6 +6,7 @@ import { RegisterPage } from './pages/RegisterPage';
 import { ProjectListPage } from './pages/ProjectListPage';
 import { CreateProjectPage } from './pages/CreateProjectPage';
 import { ProjectDetailPage } from './pages/ProjectDetailPage';
+import { TestRunPage } from './pages/TestRunPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const auth = React.useContext(AuthContext);
@@ -23,6 +24,10 @@ function AppRoutes() {
       <Route path="/projects" element={<ProtectedRoute><ProjectListPage /></ProtectedRoute>} />
       <Route path="/projects/new" element={<ProtectedRoute><CreateProjectPage /></ProtectedRoute>} />
       <Route path="/projects/:id" element={<ProtectedRoute><ProjectDetailPage /></ProtectedRoute>} />
+      <Route
+        path="/projects/:projectId/test-runs/:runId"
+        element={<ProtectedRoute><TestRunPage /></ProtectedRoute>}
+      />
       <Route path="*" element={<Navigate to="/login" />} />
     </Routes>
   );
