@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Testify.Api.Data;
+using Testify.Api.Services;
 
 namespace Testify.Api.Controllers
 {
@@ -15,61 +16,70 @@ namespace Testify.Api.Controllers
             _db = db;
         }
 
-        private Guid GetUserIdFromToken()
-        {
-            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-            return userIdClaim != null ? Guid.Parse(userIdClaim) : Guid.Empty;
-        }
-
         [HttpGet]
         public async Task<IActionResult> GetDashboard(Guid projectId)
         {
-            var userId = GetUserIdFromToken();
-            if (userId == Guid.Empty)
-                return Unauthorized(new { error = new { message = "Unauthorized", code = "UNAUTHORIZED" }, status = 401 });
-
-            var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId);
-            if (project == null)
-                return NotFound(new { error = new { message = "Project not found", code = "NOT_FOUND" }, status = 404 });
-
-            var member = await _db.ProjectMembers.FirstOrDefaultAsync(pm => pm.ProjectId == projectId && pm.UserId == userId);
-            if (member == null && project.OwnerId != userId)
-                return this.ForbiddenResponse();
+            var (denied, _) = await this.RequireProjectAccessAsync(_db, projectId, ProjectRole.Viewer);
+            if (denied is not null) return denied;
 
             var totalCases = await _db.TestCases.CountAsync(tc => tc.ProjectId == projectId);
             var totalRuns = await _db.TestRuns.CountAsync(tr => tr.ProjectId == projectId);
+            var runsCompleted = await _db.TestRuns.CountAsync(tr => tr.ProjectId == projectId && tr.Status == "Complete");
 
-            var runs = await _db.TestRuns
+            // Every result of every run in this project. The pass rate comes from RunStats, so every screen shows the same rule.
+            var results = _db.TestRunResults.Where(r => r.TestRun.ProjectId == projectId);
+            var totalResults = await results.CountAsync();
+            var passed = await results.CountAsync(r => r.Result == "Pass");
+            var failed = await results.CountAsync(r => r.Result == "Fail");
+            var blocked = await results.CountAsync(r => r.Result == "Blocked");
+            var notRun = await results.CountAsync(r => r.Result == "Not Run");
+
+            // "Current" pass rate is the pass rate of the latest run.
+            var latest = await _db.TestRuns
                 .Where(tr => tr.ProjectId == projectId)
-                .Include(tr => tr.Results)
-                .ToListAsync();
+                .OrderByDescending(tr => tr.CreatedAt)
+                .Select(tr => new
+                {
+                    tr.Id,
+                    tr.Status,
+                    tr.CreatedAt,
+                    Total = tr.Results.Count,
+                    Passed = tr.Results.Count(r => r.Result == "Pass"),
+                    Failed = tr.Results.Count(r => r.Result == "Fail"),
+                    Blocked = tr.Results.Count(r => r.Result == "Blocked"),
+                    NotRun = tr.Results.Count(r => r.Result == "Not Run")
+                })
+                .FirstOrDefaultAsync();
 
-            var totalResults = runs.SelectMany(r => r.Results).ToList();
-            var passedResults = totalResults.Count(r => r.Result == "Pass");
-            var passRate = totalResults.Count > 0 ? (int)Math.Round(100.0 * passedResults / totalResults.Count) : 0;
+            object? latestRun = latest is null
+                ? null
+                : new
+                {
+                    id = latest.Id,
+                    status = latest.Status,
+                    created_at = latest.CreatedAt,
+                    total = latest.Total,
+                    passed = latest.Passed,
+                    failed = latest.Failed,
+                    blocked = latest.Blocked,
+                    not_run = latest.NotRun,
+                    pass_rate = RunStats.PassRate(latest.Passed, latest.Total)
+                };
 
-            var testCaseIds = await _db.TestCases
-                .Where(tc => tc.ProjectId == projectId)
-                .Select(tc => tc.Id)
-                .ToListAsync();
+            var projectDefects = _db.Defects.Where(d => d.TestCase.ProjectId == projectId);
 
-            var openDefects = await _db.Defects
-                .Where(d => testCaseIds.Contains(d.TestCaseId) && d.Status == "Open")
-                .ToListAsync();
-
-            var defectsBySeverity = openDefects
+            var openBySeverity = await projectDefects
+                .Where(d => d.Status == "Open")
                 .GroupBy(d => d.Severity)
                 .Select(g => new { severity = g.Key, count = g.Count() })
-                .ToList();
+                .ToListAsync();
 
-            var defectsByStatus = await _db.Defects
-                .Where(d => testCaseIds.Contains(d.TestCaseId))
+            var defectsByStatus = await projectDefects
                 .GroupBy(d => d.Status)
                 .Select(g => new { status = g.Key, count = g.Count() })
                 .ToListAsync();
 
-            var recentDefects = await _db.Defects
-                .Where(d => testCaseIds.Contains(d.TestCaseId))
+            var recentDefects = await projectDefects
                 .OrderByDescending(d => d.CreatedAt)
                 .Take(5)
                 .Select(d => new { id = d.Id, title = d.Title, severity = d.Severity, status = d.Status, created_at = d.CreatedAt })
@@ -79,14 +89,16 @@ namespace Testify.Api.Controllers
             {
                 total_cases = totalCases,
                 total_runs = totalRuns,
-                pass_rate = passRate,
-                total_results = totalResults.Count,
-                passed = passedResults,
-                failed = totalResults.Count(r => r.Result == "Fail"),
-                blocked = totalResults.Count(r => r.Result == "Blocked"),
-                not_run = totalResults.Count(r => r.Result == "Not Run"),
-                open_defects = openDefects.Count,
-                defects_by_severity = defectsBySeverity,
+                runs_completed = runsCompleted,
+                pass_rate = RunStats.PassRate(passed, totalResults),
+                total_results = totalResults,
+                passed,
+                failed,
+                blocked,
+                not_run = notRun,
+                latest_run = latestRun,
+                open_defects = openBySeverity.Sum(x => x.count),
+                defects_by_severity = openBySeverity,
                 defects_by_status = defectsByStatus,
                 recent_defects = recentDefects
             });
