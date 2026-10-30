@@ -1175,6 +1175,46 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 39: Create Project, A Shared Look, And The Test Runs Flow
+
+**Date:** October 30, 2026
+
+**Context:** CODE_REVIEW.md 1.2 and 1.3. The Create Project button went to `/projects/new`, which did not exist, so the app treated "new" as a project id and showed an error. The Test Runs tab was a stub that said "coming soon", which left the core feature of the brief (run a set of test cases and see a live pass rate) with no screen at all.
+
+**What I asked the AI:** To agree the look of the new screens from a mockup before any code, then build Create Project, then the Test Runs list, then the page where a run is executed. The pass rate on the run list needed counts the API did not send yet, so I asked for that to be built tests first.
+
+**What it gave me:**
+1. A mockup of the Projects page and the Create Project form that I approved before any code was written.
+2. A shared header, restyled project cards and a `CreateProjectPage` with the same validation and messages as the server.
+3. `RunStats.PassRate` and run summaries (result counts and pass rate) on the run list and run detail endpoints, with 10 new tests.
+4. A Test Runs tab: list of runs with a pass rate bar, and a panel to pick test cases for a new run.
+5. A run page: mark each result Pass, Fail, Blocked or Not run, add notes, see the pass rate move, complete or reopen the run.
+
+**What I changed and why:**
+1. Kept plain CSS and added no libraries, because Decision 19 showed Tailwind cost time for no gain.
+2. The counts are worked out by the database in one query for the whole list, not by one request per run. The pass rate is calculated in one place (`RunStats`) so every screen shows the same number.
+3. Wrote the tests first and watched them fail twice: first the build failed because `RunStats` did not exist, then the 4 run summary tests failed because the API did not send counts. After the change all 66 tests passed (56 before, 10 new).
+4. Creating a run is two calls: create the run, then add the cases. If adding the cases fails, the screen deletes the empty run so nothing half-made is left behind.
+5. A completed run is locked. To change a result you reopen it first.
+6. The run page links back to `?tab=runs`, so Back lands on the Test Runs tab and not the Test Cases tab.
+
+**What I did not understand at first:**
+- .NET `Math.Round` rounds halves to the nearest even number by default, so 12.5 would become 12. JavaScript rounds 12.5 up to 13. To make the server and the screen agree, the server uses `MidpointRounding.AwayFromZero`, which rounds halves up like JavaScript does.
+- Counting results per run does not need one request per run. EF Core turned the counts into one SELECT with a subquery for each count, which I could see in the API log.
+- Windows keeps `Testify.Api.exe` locked after a run that was not stopped properly, so `dotnet run` could not rebuild and failed with MSB3026. "Access is denied" meant I could not kill it either. `dotnet run --no-build` ran the build that already existed, and a restart cleared the lock. The habit is to press Ctrl+C in the API terminal before closing it.
+- Values set in a terminal override user secrets, because configuration layers load in order and later sources win. That is why pasting database settings by hand pointed the API at a database that did not exist.
+- EF Core warns when paging (`Skip` and `Take`) is used without an `OrderBy`, because the database does not promise any order then. The test cases list still has this problem and needs a sort.
+
+**Where the AI cost me time:**
+- A second AI told me to set a database password and JWT secret by hand and start Postgres in Docker. That was wrong for this setup: Docker Desktop does not run on my laptop and my real values were already in user secrets. It cost a round of confusion before I went back to the original setup.
+- The run page and tab use the same data loading pattern as the older tabs, which adds lint warnings (6 before this PR, 9 now). They are warnings, not errors, but they need a proper fix.
+
+**Result:** RESOLVED for Create Project and Test Runs. Limits: executing a run is only tested by hand in the browser so far, there is no Playwright test for it yet (testing PR), the test cases list still has no sort order, and Defects and the Dashboard are still stubs.
+
+**Source verification:** Microsoft Learn on `Math.Round` and `MidpointRounding` (default is to even). MDN on `Math.round` (halves round up). Microsoft Learn on configuration providers in ASP.NET Core (later sources override earlier ones). EF Core documentation warning about `Skip`/`Take` without `OrderBy`.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: October 29, 2026
+Last updated: October 30, 2026
