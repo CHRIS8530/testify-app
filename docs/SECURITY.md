@@ -35,7 +35,7 @@ This describes the code as it is today: what it protects, how, and what it does 
 ## Input validation
 
 - The server validates email, username and password rules, required titles and names, and the allowed values for priority, severity, run status, defect status and test result. Invalid values return 400 with a code.
-- The browser does not yet check everything the server checks (the password rules beyond length, and the username length).
+- The register form checks the same rules as the server (username length, password length, uppercase, digit and special character) and shows the same messages.
 - Responses are JSON and the frontend renders values through React, which escapes them.
 
 ## CORS
