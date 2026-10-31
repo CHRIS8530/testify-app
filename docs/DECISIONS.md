@@ -1285,6 +1285,37 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 42: The README And SECURITY.md Are Rewritten From The Running App
+
+**Date:** October 31, 2026
+
+**Context:** CODE_REVIEW.md section 5 and the brief's definition of done, which asks for a README with what it is, an architecture diagram, how to run it, how to deploy it, and known limitations. The README written on October 27 said the web app was incomplete and that the Test Runs, Defects and Dashboard tabs did not work. Three pull requests later every one of those screens works, so the Known Limitations list had become false. SECURITY.md also still said the register form did not check the server's password rules, which stopped being true in Decision 38.
+
+**What I asked the AI:** To rewrite the README from the current code and the results I had actually seen, and to find any line in SECURITY.md that the last few pull requests had made untrue.
+
+**What it gave me:**
+1. A whole new README: a short description, a status line, what you can do, an architecture diagram, the tech stack, how to run it locally, a configuration table, how to run the tests and what CI does, the real endpoint list with the right verbs, a deployment section, a container section and an honest Known Limitations list.
+2. A one line correction in SECURITY.md.
+
+**What I changed and why:**
+1. Kept every claim to something I had run or read. The test count (72) comes from the last `dotnet test`, the endpoint verbs come from the controllers, and the configuration names come from Program.cs and config.ts.
+2. The deployment section says the app is not deployed. Only the database is on Render. I would rather the README say so than describe a deployment that does not exist.
+3. Image sizes are marked as not recorded, not estimated. The brief asks for them, but Docker Desktop does not start on my laptop, so I cannot build the images yet.
+4. The architecture diagram is a Mermaid block, so GitHub draws it from text and it cannot drift into a stale picture file.
+
+**What I did not understand at first:**
+- A Known Limitations list is only true on the day it is written. The October 27 version was honest when I wrote it and wrong within days, because features landed afterwards. The habit that fixes this is to update the README in the same pull request as the feature, not in a catch-up pull request like this one.
+- GitHub draws a fenced block marked `mermaid` as a diagram, so a diagram can live in the README as plain text and be reviewed like code.
+- The CI badge shows the latest run of the workflow on the default branch, not the status of an open pull request.
+
+**Where the AI cost me time:** Nothing significant on this change. The earlier READMEs described the plan or a past state of the app, which is the failure the review pointed out in section 5, and this rewrite exists to fix that.
+
+**Result:** RESOLVED for now. Limits: the README still has no recorded image sizes and no real deployment instructions, because there is no deployment. Both need real values once the images are built and the app is deployed.
+
+**Source verification:** GitHub Docs on creating diagrams with Mermaid in Markdown. GitHub Docs on adding a workflow status badge. The challenge brief, section 7, for the README requirements.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
 Last updated: October 31, 2026
