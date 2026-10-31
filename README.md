@@ -6,167 +6,163 @@ Testify is a lightweight test run and defect tracker. You create projects, write
 
 Built for an AI-assisted engineering challenge. Every significant decision is recorded in [docs/DECISIONS.md](docs/DECISIONS.md) and the security model in [docs/SECURITY.md](docs/SECURITY.md).
 
-**Status:** the API covers all the core features and is tested. The web app is not finished, see Known Limitations below.
+**Status:** every core feature in the brief works end to end when run locally. **The app is not deployed yet.** Only the PostgreSQL database exists on Render. See Deployment and Known Limitations below.
 
-## API Endpoints
+## What you can do
 
-### Auth
-- `POST /api/v1/auth/register` — Register new user
-- `POST /api/v1/auth/login` — Login user
-- `POST /api/v1/auth/refresh` — Refresh access token
-- `POST /api/v1/auth/logout` — Logout user
+- **Register and sign in.** The access token lives in memory only and lasts 15 minutes. A refresh token in an httpOnly cookie renews it, and it rotates on every use.
+- **Projects.** Create a project, list your projects, open one. The creator is the owner. Other users can be invited as editor or viewer (through the API, there is no screen for it yet).
+- **Test cases.** Title, preconditions, steps, expected result and priority (Low, Medium, High, Critical). Create, edit and delete.
+- **Test runs.** Create a run from a chosen set of test cases, mark each one Pass, Fail, Blocked or Not run, add notes, and watch the pass rate update. A run can be completed and reopened.
+- **Defects.** Raise a defect from a failed result on a run. Each has a severity and a status (Open, In Progress, Resolved, Closed) and links back to its test case and run. The Defects tab lists them and filters by status.
+- **Dashboard.** Per project: total test cases, runs completed, the pass rate of the latest run, open defects by severity, and the most recent defects.
 
-### Projects
-- `GET /api/v1/projects` — List all projects
-- `POST /api/v1/projects` — Create project
-- `GET /api/v1/projects/:id` — Get project details
-- `PUT /api/v1/projects/:id` — Update project
-- `DELETE /api/v1/projects/:id` — Delete project
+## Architecture
 
-### Test Cases
-- `GET /api/v1/projects/:id/test-cases` — List test cases
-- `POST /api/v1/projects/:id/test-cases` — Create test case
-- `GET /api/v1/projects/:id/test-cases/:caseId` — Get test case
-- `PUT /api/v1/projects/:id/test-cases/:caseId` — Update test case
-- `DELETE /api/v1/projects/:id/test-cases/:caseId` — Delete test case
+```mermaid
+flowchart LR
+  Browser["Browser: React and TypeScript, built with Vite"]
+  API["ASP.NET Core API under /api/v1"]
+  DB[("PostgreSQL")]
+  Browser -->|"JSON over HTTP with a Bearer access token"| API
+  API -->|"EF Core, parameterised queries"| DB
+  Browser -.->|"httpOnly refresh cookie, auth endpoints only"| API
+```
 
-### Test Runs
-- `GET /api/v1/projects/:id/test-runs` — List test runs
-- `POST /api/v1/projects/:id/test-runs` — Create test run
-- `PUT /api/v1/projects/:id/test-runs/:runId` — Update test run status
-- `DELETE /api/v1/projects/:id/test-runs/:runId` — Delete test run
+- The browser talks only to the API. The API address comes from `VITE_API_URL`.
+- Every project endpoint checks the signed in user's role on that project (owner, editor or viewer). No token gives 401, an unknown project 404, not enough access 403.
+- The pass rate is calculated in one place (`api/Services/RunStats.cs`) so the run list, the run page and the dashboard always agree.
+- Writes are recorded in an audit log. Schema changes go through EF Core migrations, which are applied when the API starts.
 
+## Tech stack
 
-### Test Results
-- `GET /api/v1/projects/:id/test-runs/:runId/results` — Get results for run
-- `POST /api/v1/projects/:id/test-runs/:runId/results` — Add result
-- `PATCH /api/v1/projects/:id/test-runs/:runId/results/:resultId` — Update result
+| Part | What |
+|---|---|
+| API | C#, .NET 10, ASP.NET Core controllers, Entity Framework Core |
+| Database | PostgreSQL (Render for the shared database) |
+| Web | React 19, TypeScript, Vite, react-router v6, plain CSS |
+| API tests | xUnit with the in-memory database |
+| Browser tests | Playwright (out of date, see Known Limitations) |
+| CI | GitHub Actions |
 
-### Defects
-- `GET /api/v1/projects/:id/defects` — List defects
-- `POST /api/v1/projects/:id/defects` — Create defect
-- `PUT /api/v1/projects/:id/defects/:defectId` — Update defect
-- `DELETE /api/v1/projects/:id/defects/:defectId` — Delete defect
+## Run it locally
 
-### Dashboard
-- `GET /api/v1/projects/:id/dashboard` — Get project dashboard metrics
+You need the .NET 10 SDK, Node 22, and a PostgreSQL database (a local one, or a hosted one such as Render).
 
-## Configuration
-
-The API reads its settings from configuration, so nothing secret is committed to the repo. These values are needed:
-
-- `ConnectionStrings__DefaultConnection`: the PostgreSQL connection string (Npgsql format)
-- `JWT_SECRET`: the key used to sign access tokens
-- `CORS_ALLOWED_ORIGINS`: a comma separated list of the frontend addresses allowed to call the API (never `*`). Local development gets `http://localhost:5173` from `api/appsettings.Development.json`. Every other environment must set it.
-
-If the connection string or the CORS origins are missing, the API stops at startup and says so.
-
-### Local development (`dotnet run` or F5)
-
-Store both values with user secrets. They live in your user profile, outside the repo, and only load in the Development environment:
+**1. Store the API secrets with user secrets.** They live in your user profile, outside the repo, and only load in the Development environment. Replace the placeholders with your own values, and never commit them.
 
 ```bash
 cd api
 dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=<host>;Port=5432;Database=<db>;Username=<user>;Password=<password>;SSL Mode=Require"
 dotnet user-secrets set "JWT_SECRET" "<a long random string>"
 ```
-### Frontend
 
-The frontend reads the API address from `VITE_API_URL`: the origin only, with no path, for example `http://localhost:5137`. For local development it comes from `frontend/.env.development`, which points at `dotnet run` and holds no secrets. Anywhere else, set `VITE_API_URL` in the environment when the frontend is built or the dev server starts. If it is missing, the app stops at startup with a message saying so.
-
-### Docker Compose
-
-Optionally copy `.env.example` to `.env`. Compose passes the connection string to the API container and points it at the Postgres container in the compose file. The defaults in `.env.example` are for local use only. Running the whole stack with Compose is still being fixed (see `docs/CODE_REVIEW.md`, item 1.4).
-
-### Deployed (Render)
-
-Set `ConnectionStrings__DefaultConnection`, `JWT_SECRET` and `CORS_ALLOWED_ORIGINS` (the address of the deployed frontend) as environment variables on the service.
-
-## Running Tests
-
-### Backend Unit Tests
+**2. Start the API.** Migrations are applied when it starts.
 
 ```bash
-cd api.tests
-dotnet test
+cd api
+dotnet run
 ```
 
-Expected: all tests passing
+It listens on `http://localhost:5137`.
 
-### Frontend E2E Tests
+**3. Start the web app.** In a second terminal:
 
 ```bash
 cd frontend
-npm run test        # Headless mode
-npm run test:ui     # Interactive mode with UI
+npm ci
+npm run dev
 ```
 
-Tests cover:
-- User registration and login
-- Project creation and listing
-- Test case CRUD operations
-- Defect creation
-- Tab navigation
+Open `http://localhost:5173`. The API address comes from `frontend/.env.development`.
 
-## Cloud Deployment (Render)
+Press Ctrl+C in each terminal to stop. If `dotnet run` fails because `Testify.Api.exe` is locked, a previous run was not stopped properly. Restart the computer, or use `dotnet run --no-build`.
 
-### Status
-Partial setup complete. PostgreSQL database provisioned on Render, connection string configured. EF Core migrations require additional troubleshooting.
+## Configuration
 
-### What's Done
-- Render PostgreSQL database created (`testify-db-2`)
-- Connection string supplied through configuration and never committed (see Configuration above)
-- Migrations apply automatically when the API starts
+Nothing environment-specific is baked into the code. Settings come from configuration.
 
-### What's Blocked
-- EF Core 10.0.12 runtime vs 10.0.1 tools version mismatch
-- Migration validation fails on empty cloud database
-- Requires either: updating EF Core tools, or creating fresh migration in cloud environment
+| Name | Used by | What it is |
+|---|---|---|
+| `ConnectionStrings__DefaultConnection` | API | The PostgreSQL connection string. The API stops at startup if it is missing. |
+| `JWT_SECRET` | API | The key that signs access tokens. |
+| `CORS_ALLOWED_ORIGINS` | API | Comma separated list of web app addresses allowed to call the API, never `*`. Development gets `http://localhost:5173` from `api/appsettings.Development.json`. Every other environment must set it. |
+| `VITE_API_URL` | Web app | The API address, origin only, for example `http://localhost:5137`. Development reads it from `frontend/.env.development`. The app stops at startup if it is missing. |
 
-### Next Steps (Post-Deadline)
-1. Update EF Core tools to match runtime version
-2. Re-run `dotnet ef database update` against Render
-3. Deploy API to Render Web Service
-4. Deploy frontend to Vercel
-5. Configure HTTPS and custom domain
+## Tests and CI
 
-See [docs/DECISIONS.md](docs/DECISIONS.md) (Decisions 25 to 29) for the technical details.
+**API tests** (72 tests, xUnit, in-memory database):
 
-## Architecture
+```bash
+dotnet test api.tests
+```
 
-### Authentication Flow
-1. User registers/logs in → API validates credentials
-2. API returns JWT access token + httpOnly refresh cookie
-3. Frontend stores access token in React state (not localStorage)
-4. All API requests include `Authorization: Bearer <token>`
-5. On token expiry, frontend silently refreshes via cookie
-6. On 401, user redirected to login
+They cover authorization, the audit log, token handling, input validation, CORS, the pass rate rule, run summaries and the dashboard. New API behaviour is written test first.
 
-### Data Flow
-1. Frontend calls API via `useApi` hook (centralized fetch wrapper)
-2. Hook handles Bearer token injection, credentials mode, error handling
-3. API authenticates, validates, queries database via Entity Framework
-4. Response returned as JSON
-5. Frontend updates React state via useState/context
+**Web app checks:**
 
-## Known Limitations
+```bash
+cd frontend
+npx tsc -b
+npm run lint
+npm run build
+```
 
-- The web app is incomplete. Sign in and the project list work. Creating a project from the screen, editing a test case (the screen sends PATCH, the API expects PUT), and the Test Runs, Defects and Dashboard tabs do not work yet. The API behind all of them is implemented and tested.
-- `docker compose up` does not run end to end yet: the API port mapping and build context need fixing, and the frontend image still runs the Vite dev server. Docker Desktop would not start on the development machine, so this is to be proven in CI instead.
-- The OpenAPI specification is not served yet.
-- The Cloud Deployment section below is out of date.
-- 6 lint warnings (oxlint, React hook dependencies) are known and not fixed.
-- A high severity advisory in `Microsoft.OpenApi` 2.0.0 shows as build warning NU1903, and `npm audit` reports 3 vulnerabilities in the frontend. Neither is triaged yet.
-- Security specific limitations are listed in [docs/SECURITY.md](docs/SECURITY.md).
+**CI** runs on every pull request and on pushes to `main`: a format check, the API tests, then for the web app `npm ci`, lint, type-check and build. Both jobs (`api` and `frontend`) must pass before a pull request can be merged.
 
-## Decision Log
+## API
 
-Every significant decision is recorded in [docs/DECISIONS.md](docs/DECISIONS.md): what I was trying to do, what I asked the AI, what changed and why, and what I did not understand at first.
+Base path `/api/v1`. Errors from the API's own code look like `{ "error": { "message": "...", "code": "..." }, "status": 400 }`.
 
-## Support & Feedback
+| Area | Endpoints |
+|---|---|
+| Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh` (reads the refresh cookie), `POST /auth/logout`, `POST /auth/forgot-password`, `POST /auth/reset-password` |
+| Projects | `GET /projects`, `POST /projects`, `GET /projects/{id}`, `PUT /projects/{id}`, `DELETE /projects/{id}` |
+| Members | `POST /projects/{id}/members/invite`, `DELETE /projects/{id}/members/{userId}` |
+| Test cases | `GET /projects/{id}/test-cases`, `POST` the same path, `GET`, `PUT` and `DELETE /projects/{id}/test-cases/{caseId}` |
+| Test runs | `GET /projects/{id}/test-runs`, `POST` the same path, `GET`, `PUT` (status) and `DELETE /projects/{id}/test-runs/{runId}` |
+| Results | `GET /projects/{id}/test-runs/{runId}/results`, `POST` the same path (add cases), `PATCH /projects/{id}/test-runs/{runId}/results/{resultId}` |
+| Defects | `GET /projects/{id}/defects`, `POST` the same path, `GET`, `PUT` (status only) and `DELETE /projects/{id}/defects/{defectId}` |
+| Dashboard | `GET /projects/{id}/dashboard` |
+| Audit log | `GET /admin/logs` (your own actions and the projects you own) |
+| Health | `GET /health` |
 
-This project was built as part of an AI-Assisted Engineering Challenge. Questions or feedback should be directed to the project owner.
+An OpenAPI specification is not served yet.
 
----
+## Deployment
 
-**Last Updated:** October 27, 2026
+**The app is not deployed.** What exists today:
+
+- A PostgreSQL database on Render (`testify-db-2`). The API applies migrations to it when it starts.
+- A CI pipeline that tests and builds, but does not deploy.
+
+Still to do: a production frontend image, a CI job that builds both images, an infrastructure file (`render.yaml`), the API and web app running over HTTPS, and a documented backup strategy.
+
+## Container images
+
+The API has a multi-stage Dockerfile that runs as a non-root user. The web app's Dockerfile is not production shaped yet (it runs the Vite dev server). `docker compose up` has not been proven end to end: Docker Desktop does not start on the development machine, so this is to be proven in CI. **Image sizes are not recorded yet**, because the images have not been built.
+
+## Known limitations
+
+- Not deployed, and the container setup is not proven (see above).
+- The OpenAPI specification is not served.
+- The Playwright tests in `frontend/tests/e2e` are out of date and do not run in CI. They need rewriting for the register rules, the create project form and the run page, and there is no browser test for executing a run yet.
+- The API tests use the in-memory database, not a real PostgreSQL. Behaviour that differs between the two is not covered.
+- Lists have no maximum page size and no total count, and the test cases list has no sort order. The framework's own 400 errors use a different shape from the API's.
+- Rate limiting is one global limit per IP. There is no stricter limit on sign in, and behind a proxy every client shares the proxy's address.
+- CORS allows any method and header from the allowed origins.
+- Inviting a member has no screen, the emailed link goes nowhere, and emails are mocked and written to the server log. There is no endpoint to list a project's members.
+- A defect's title, description and severity cannot be edited after it is raised, and nothing sets its resolved date.
+- Lint reports about ten warnings (React hook dependencies). They are warnings, not errors.
+- `Microsoft.OpenApi` 2.0.0 has a known high severity advisory (build warning NU1903), and findings from `npm audit` are not triaged. Dependabot is not configured.
+- More security limitations are listed in [docs/SECURITY.md](docs/SECURITY.md).
+
+## Documentation
+
+- [docs/DECISIONS.md](docs/DECISIONS.md): every significant decision and what was learned
+- [docs/SECURITY.md](docs/SECURITY.md): the security model and its limits
+- [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md): the code review this work follows
+- [docs/ai-engineering-challenge-brief.md](docs/ai-engineering-challenge-brief.md): the challenge brief
+- The planning documents (schema, endpoints, components, Docker) were written before coding. Where they differ from the code, the code is the source of truth.
+
+**Last updated:** October 31, 2026
