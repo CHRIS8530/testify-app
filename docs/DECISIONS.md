@@ -1316,6 +1316,41 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 43: A Test Strategy And Browser Tests For The Critical Paths
+
+**Date:** October 31, 2026
+
+**Context:** CODE_REVIEW.md 4.2 and brief 3.7. Testing was the biggest gap and it was meant to be my strongest area. There was no written test strategy, the four old Playwright files were broken (a password with no special character, an old create project form, a stub Defects tab, a user and project that were never seeded), the config started only the web app with no API behind it, and there was no browser test for executing a run.
+
+**What I asked the AI:** For a written test strategy, and a set of browser tests for the six paths the brief names (register, log in, create a project, create a case, execute a run, raise a defect) that do not depend on seeded data and do not touch the real database.
+
+**What it gave me:**
+1. `docs/TEST_STRATEGY.md`: the levels (static checks, unit, API integration, end to end), what each covers and why, how to run them, and an honest list of what is not covered.
+2. A `RATE_LIMIT_PER_MINUTE` setting for the API, 100 when it is not set.
+3. `helpers.ts` and `critical-paths.spec.ts`: 8 Playwright tests (the six paths, a wrong password, and the dashboard).
+4. A rewritten `playwright.config.ts` (Chromium, no report opening in the browser) and the Playwright output folders added to `.gitignore`.
+
+**What I changed and why:**
+1. Deleted the four old spec files instead of patching them, because every one of them depended on something that no longer existed or never existed.
+2. Every test makes its own user with a unique email. Setup (the project, the cases, the run, the results) is done through the API, and only the behaviour under test is done in the browser. That keeps tests independent, lets them run in parallel, and means a failure points at the thing under test.
+3. Made the rate limit configurable instead of removing it. Eight tests make far more than 100 requests a minute from one address and would get 429 responses. The default stays 100, so normal behaviour is unchanged, and all 72 API tests still pass.
+4. The browser tests run against a throwaway API in the Test environment with an in-memory database, using made-up secrets in a terminal I closed afterwards, so the Render database is never touched.
+5. The 8 tests passed on the first run (10.3 seconds). Lint shows 0 errors and the build is clean.
+
+**What I did not understand at first:**
+- A browser test needs two things running, the web app and an API. The old config started only the web app, so the old suite had no backend to talk to even if its steps had been right.
+- Setting `ASPNETCORE_ENVIRONMENT=Test` switches the API to the in-memory database, the same switch the xUnit tests use. `--no-launch-profile` is needed as well, because `launchSettings.json` sets Development and would override it, which is the same trap as review 0.3.
+- A file opened with `code` does not exist on disk until it is saved. My first `git add` for the strategy failed with "pathspec did not match", and I committed it after the browser tests.
+- Playwright finds elements best by role, label and text, and not by CSS class. The outcome buttons expose `aria-pressed`, which makes the page easier to test and easier to use with a screen reader at the same time.
+
+**Where the AI cost me time:** Nothing significant. The tests passed on the first run.
+
+**Result:** RESOLVED for the critical paths. Limits: the browser tests run locally and not in CI yet, only Chromium is used, there are no tests against a real PostgreSQL, rate limiting has no test of its own, editor and viewer limits are tested at the API level only, and the test files are not type checked by `tsc -b`, because it only covers `src` and `vite.config.ts`.
+
+**Source verification:** Playwright documentation on locators, test isolation and parallelism. Microsoft Learn on ASP.NET Core environments and `launchSettings.json`. The challenge brief, section 3.7, for the testing requirements.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
 Last updated: October 31, 2026

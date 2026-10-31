@@ -42,7 +42,7 @@ flowchart LR
 | Database | PostgreSQL (Render for the shared database) |
 | Web | React 19, TypeScript, Vite, react-router v6, plain CSS |
 | API tests | xUnit with the in-memory database |
-| Browser tests | Playwright (out of date, see Known Limitations) |
+| Browser tests | Playwright (Chromium), 8 tests, run locally |
 | CI | GitHub Actions |
 
 ## Run it locally
@@ -108,6 +108,28 @@ npm run lint
 npm run build
 ```
 
+**Browser tests** (8 Playwright tests, Chromium). They run against a throwaway copy of the API that uses an in-memory database, so the real database is never touched. In a fresh terminal, start that API:
+
+```powershell
+cd api
+$env:ASPNETCORE_ENVIRONMENT = "Test"
+$env:ASPNETCORE_URLS = "http://localhost:5137"
+$env:JWT_SECRET = "<any long random string, only for this run>"
+$env:CORS_ALLOWED_ORIGINS = "http://localhost:5173"
+$env:RATE_LIMIT_PER_MINUTE = "100000"
+dotnet run --no-launch-profile
+```
+
+In a second terminal, run the tests. Playwright starts the web app by itself:
+
+```powershell
+cd frontend
+npx playwright install chromium
+npx playwright test
+```
+
+`playwright install` is only needed the first time. When you are done, stop the API with Ctrl+C and close that terminal, so the variables do not linger.
+
 **CI** runs on every pull request and on pushes to `main`: a format check, the API tests, then for the web app `npm ci`, lint, type-check and build. Both jobs (`api` and `frontend`) must pass before a pull request can be merged.
 
 ## API
@@ -146,7 +168,7 @@ The API has a multi-stage Dockerfile that runs as a non-root user. The web app's
 
 - Not deployed, and the container setup is not proven (see above).
 - The OpenAPI specification is not served.
-- The Playwright tests in `frontend/tests/e2e` are out of date and do not run in CI. They need rewriting for the register rules, the create project form and the run page, and there is no browser test for executing a run yet.
+- The Playwright tests (8, Chromium only) run locally but not in CI yet. See [docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md) for what is and is not covered.
 - The API tests use the in-memory database, not a real PostgreSQL. Behaviour that differs between the two is not covered.
 - Lists have no maximum page size and no total count, and the test cases list has no sort order. The framework's own 400 errors use a different shape from the API's.
 - Rate limiting is one global limit per IP. There is no stricter limit on sign in, and behind a proxy every client shares the proxy's address.

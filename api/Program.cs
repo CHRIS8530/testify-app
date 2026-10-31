@@ -6,6 +6,10 @@ using AspNetCoreRateLimit;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Requests allowed per minute per IP address. 100 unless RATE_LIMIT_PER_MINUTE says otherwise
+// (the browser tests raise it, because they make many requests from one address).
+var rateLimitPerMinute = builder.Configuration.GetValue<int?>("RATE_LIMIT_PER_MINUTE") ?? 100;
+
 // Rate limiting - ORDER MATTERS
 builder.Services.AddMemoryCache();
 builder.Services.AddInMemoryRateLimiting();
@@ -17,7 +21,7 @@ builder.Services.Configure<IpRateLimitOptions>(options =>
         {
             Endpoint = "*",
             Period = "1m",
-            Limit = 100
+            Limit = rateLimitPerMinute
         }
     };
 });
