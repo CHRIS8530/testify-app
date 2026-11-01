@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
 
 namespace Testify.Api.Tests;
@@ -12,8 +13,8 @@ public static class ApiTestHelpers
 {
     public const string Password = "Passw0rd!test";
 
-    // Registers and signs in a brand new user. Every call uses a unique email, because tests share one in-memory database.
-    public static async Task<TestUser> CreateUserAsync(TestifyApiFactory factory)
+    // Registers and signs in a brand new user. Every call uses a unique email, because tests share one database.
+    public static async Task<TestUser> CreateUserAsync(WebApplicationFactory<Program> factory)
     {
         var unique = Guid.NewGuid().ToString("N")[..12];
         var email = $"user{unique}@example.com";
