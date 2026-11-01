@@ -12,9 +12,7 @@ namespace Testify.Api.Tests;
 // Any environment name except "Test" makes Program.cs use Npgsql and apply the real migrations on startup.
 public class PostgresApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _database = new PostgreSqlBuilder()
-        .WithImage("postgres:15-alpine")
-        .Build();
+    private PostgreSqlContainer? _database;
 
     public bool DockerAvailable { get; private set; }
 
@@ -22,6 +20,8 @@ public class PostgresApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     {
         try
         {
+            // Built here and not in a field initializer: Build() checks for Docker and throws when it is missing.
+            _database = new PostgreSqlBuilder("postgres:15-alpine").Build();
             await _database.StartAsync();
             DockerAvailable = true;
         }
@@ -36,11 +36,15 @@ public class PostgresApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     async Task IAsyncLifetime.DisposeAsync()
     {
         await base.DisposeAsync();
-        await _database.DisposeAsync();
+        if (_database is not null)
+            await _database.DisposeAsync();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        if (_database is null)
+            throw new InvalidOperationException("The database container is not running. Tests must skip when DockerAvailable is false.");
+
         builder.UseEnvironment("Integration");
 
         // Program.cs reads these while it registers services, so they go in with UseSetting.
