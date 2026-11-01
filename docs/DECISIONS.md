@@ -1351,6 +1351,43 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 44: The Browser Tests Run In CI And Block The Merge
+
+**Date:** November 1, 2026
+
+**Context:** CODE_REVIEW.md 4.2 and brief 3.7: "Tests run in CI and block the merge when they fail." Decision 43 gave me 8 Playwright tests, but they ran only on my laptop. A broken screen could still have merged, because CI covered the API tests, lint, the type check and the build, and nothing drove a real browser. The browser test files were also outside `tsc -b`, which only covered `src` and `vite.config.ts`.
+
+**What I asked the AI:** For a CI job that runs the Playwright tests against a throwaway API with an in-memory database and made-up secrets, and for a way to type check the test files too. I asked for small steps, with the checks run before each commit.
+
+**What it gave me:**
+1. A third job, `e2e`, in `ci.yml`. It installs Node and .NET, installs Chromium, builds the API, and starts it in the Test environment in the background. It polls the health endpoint for up to 2 minutes, then runs `npx playwright test`. On failure it prints the API log and keeps the Playwright report for 7 days.
+2. `frontend/tsconfig.e2e.json` and a third reference in `tsconfig.json`, so `tsc -b` (and so `npm run build` in CI) also checks `frontend/tests` and `playwright.config.ts`.
+
+**What I changed and why:**
+1. Kept the job as provided, and checked it against the Test environment setup I already used locally (Decision 43): the same environment name, the same CORS origin and the same raised rate limit.
+2. The secrets in the job are made up for that job only. The API uses an in-memory database there, so there is nothing real to protect, and the real Render connection string is never given to CI.
+3. Ran `npx tsc -b`, `npm run lint` and `npm run build` locally before committing the type-check config. `tsc -b` printed nothing, lint showed 0 errors and 11 warnings (the known `apiCall` pattern), and the build passed.
+4. After the merge, added `e2e` to the required checks on `main`, next to `api` and `frontend`. All three must now pass before a pull request can merge.
+5. Updated `docs/TEST_STRATEGY.md` and the README so they say the browser tests run in CI. The old wording said they did not, which was no longer true.
+
+**What I did not understand at first:**
+- GitHub only offers a check name in the branch protection settings after the job has run once. That is why the job went in first and the rule change came after the merge.
+- The branch protection form needs a branch name pattern. Opening the "add rule" form instead of the existing rule for `main` leaves that field empty and blocks saving.
+- A command ending in `&` in a CI step runs in the background, so the API keeps running while the next commands run. The health check loop is what stops the tests starting before the API can answer.
+- `--no-launch-profile` matters in CI for the same reason as locally (Decision 43): `launchSettings.json` sets Development and would override the Test environment.
+- `tsc -b` follows the project references in `tsconfig.json`, so adding a referenced config is enough to bring a new set of files under the type check.
+
+**Where the AI cost me time:** Nothing significant on the code. The job passed on its first run. The steps I was given said to edit the existing rule, but I landed on the new rule form, which cost a short detour.
+
+**Result:** RESOLVED. The first run of the `e2e` job (CI #146 on PR #53) was green: `api` 56s, `frontend` 14s, `e2e` 56s, 58s in total, with no failed run before it. Limits:
+- I have not yet seen the `e2e` gate fail. Decision 30 proved it for `api` and `frontend` with PR #37, but not for `e2e`. A gate that has never been seen to fail is the same trap as the `|| true` in Decision 30, so a throwaway branch with one deliberately broken test is still to do.
+- CI annotations warn that Node.js 20 is deprecated for `actions/checkout@v4` and `actions/setup-node@v4`. It is a warning, not a failure. The actions need to be upgraded before the runner default changes.
+- Only Chromium is used, the API tests still use the in-memory database, and there is no CI job that builds the Docker images yet.
+
+**Source verification:** GitHub Docs on protected branches and required status checks (only checks that ran recently can be selected). GitHub Actions workflow syntax (`timeout-minutes`, `if: failure()`) and the `upload-artifact` action. Playwright documentation on running tests in CI. TypeScript documentation on project references and `tsc -b`. Keep only the sources you actually opened.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: October 31, 2026
+Last updated: November 1, 2026
