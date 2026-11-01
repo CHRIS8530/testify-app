@@ -1388,6 +1388,33 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 45: The e2e Gate Was Seen To Fail
+
+**Date:** November 1, 2026
+
+**Context:** Decision 44 added the `e2e` job and made it a required check, but listed as a limit that I had never seen it fail. A gate that has never failed might not be a gate, which is the lesson of the `|| true` in Decision 30. PR #37 had proved this for `api` and `frontend`, not for `e2e`.
+
+**What I asked the AI:** For exact steps to break one browser test on a throwaway branch, push it, and watch what CI does, without merging it.
+
+**What it gave me:** A script that changes one expected text in the wrong password test from `Invalid email or password` to `DELIBERATELY WRONG TEXT`, with a check that the text appears exactly once. The change still type checks and lints, so only the browser test can fail.
+
+**What I changed and why:**
+1. Ran `npx tsc -b` and `npm run lint` before committing. `tsc` printed nothing and lint showed 0 errors and 11 warnings, the known ones. That confirmed the only thing broken was the test, so a red `e2e` could only mean the gate works.
+2. Pushed the branch `test/e2e-gate-fails` and opened a PR marked do not merge. After checking the result I deleted the branch and did not merge it.
+
+**What I did not understand at first:**
+- Playwright is configured to retry failed tests twice in CI. One broken test therefore appears three times in the log (the first try, retry #1 and retry #2), and the run takes longer. That is a retry policy, not three separate failures.
+- A failing job still runs the steps marked `if: failure()`, so the API log is printed and the Playwright report is uploaded. Those are the first places to look when a real failure happens.
+- The red result came from the step `Run the browser tests`. Setup, install and build steps were all green, so a failure there points at the tests and not at the environment.
+
+**Where the AI cost me time:** Nothing significant. I deleted the branch before looking at the PR page, so I did not capture whether the merge button was blocked.
+
+**Result:** RESOLVED for the main question. The `e2e` job failed in 1m 6s (CI RUN_NUMBER): 6 tests passed, and the wrong password test failed on the first try and on both retries. The `e2e` gate can fail. Limits: I did not capture the PR page, so the merge block is the behaviour GitHub documents for required checks and not something I recorded myself, and I did not record that `api` and `frontend` stayed green on that run.
+
+**Source verification:** The CI log of the failing run. Playwright documentation on retries. GitHub Docs on protected branches and required status checks.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
 Last updated: November 1, 2026
