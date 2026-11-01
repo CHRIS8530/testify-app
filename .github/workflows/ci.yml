@@ -46,3 +46,69 @@ jobs:
 
       - name: Type-check and build
         run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Install the Playwright browser
+        working-directory: ./frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Build the API
+        run: dotnet build api/Testify.Api.csproj --configuration Release
+
+      - name: Run the browser tests
+        env:
+          ASPNETCORE_ENVIRONMENT: Test
+          ASPNETCORE_URLS: http://localhost:5137
+          # Made up for this job only. The API uses an in memory database, so there is nothing real to protect.
+          JWT_SECRET: e2e-only-secret-key-not-used-anywhere-else-1234567890
+          CORS_ALLOWED_ORIGINS: http://localhost:5173
+          RATE_LIMIT_PER_MINUTE: '100000'
+        run: |
+          dotnet run --project api --configuration Release --no-build --no-launch-profile > api.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -s -o /dev/null http://localhost:5137/api/v1/health; then
+              echo "The API is up"
+              break
+            fi
+            if [ "$i" = "60" ]; then
+              echo "The API did not start"
+              cat api.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cd frontend
+          npx playwright test
+
+      - name: Show the API log
+        if: failure()
+        run: cat api.log || true
+
+      - name: Keep the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report
+          retention-days: 7
