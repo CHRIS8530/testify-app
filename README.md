@@ -42,7 +42,7 @@ flowchart LR
 | Database | PostgreSQL (Render for the shared database) |
 | Web | React 19, TypeScript, Vite, react-router v6, plain CSS |
 | API tests | xUnit with the in-memory database |
-| Browser tests | Playwright (Chromium), 8 tests, run locally |
+| Browser tests | Playwright (Chromium), 8 tests, run locally and in CI |
 | CI | GitHub Actions |
 
 ## Run it locally
@@ -87,9 +87,12 @@ Nothing environment-specific is baked into the code. Settings come from configur
 | `ConnectionStrings__DefaultConnection` | API | The PostgreSQL connection string. The API stops at startup if it is missing. |
 | `JWT_SECRET` | API | The key that signs access tokens. |
 | `CORS_ALLOWED_ORIGINS` | API | Comma separated list of web app addresses allowed to call the API, never `*`. Development gets `http://localhost:5173` from `api/appsettings.Development.json`. Every other environment must set it. |
+| `RATE_LIMIT_PER_MINUTE` | API | Requests allowed per minute per IP address. 100 when it is not set. The browser tests raise it, because they make many requests from one address. |
 | `VITE_API_URL` | Web app | The API address, origin only, for example `http://localhost:5137`. Development reads it from `frontend/.env.development`. The app stops at startup if it is missing. |
 
 ## Tests and CI
+
+The test levels, what each covers and what is not covered are in [docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md).
 
 **API tests** (72 tests, xUnit, in-memory database):
 
@@ -107,6 +110,8 @@ npx tsc -b
 npm run lint
 npm run build
 ```
+
+`tsc -b` checks the app and also the browser test files.
 
 **Browser tests** (8 Playwright tests, Chromium). They run against a throwaway copy of the API that uses an in-memory database, so the real database is never touched. In a fresh terminal, start that API:
 
@@ -130,7 +135,11 @@ npx playwright test
 
 `playwright install` is only needed the first time. When you are done, stop the API with Ctrl+C and close that terminal, so the variables do not linger.
 
-**CI** runs on every pull request and on pushes to `main`: a format check, the API tests, then for the web app `npm ci`, lint, type-check and build. Both jobs (`api` and `frontend`) must pass before a pull request can be merged.
+**CI** runs on every pull request and on pushes to `main`. It has three jobs, and all three must pass before a pull request can be merged:
+
+- `api`: a format check and the API tests.
+- `frontend`: `npm ci`, lint, then the type-check and build.
+- `e2e`: builds the API, starts it in the Test environment, waits for the health endpoint, then runs the 8 Playwright tests. If a test fails, the job prints the API log and keeps the Playwright report for 7 days.
 
 ## API
 
@@ -168,7 +177,7 @@ The API has a multi-stage Dockerfile that runs as a non-root user. The web app's
 
 - Not deployed, and the container setup is not proven (see above).
 - The OpenAPI specification is not served.
-- The Playwright tests (8, Chromium only) run locally but not in CI yet. See [docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md) for what is and is not covered.
+- The browser tests use Chromium only. See [docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md) for what is and is not covered.
 - The API tests use the in-memory database, not a real PostgreSQL. Behaviour that differs between the two is not covered.
 - Lists have no maximum page size and no total count, and the test cases list has no sort order. The framework's own 400 errors use a different shape from the API's.
 - Rate limiting is one global limit per IP. There is no stricter limit on sign in, and behind a proxy every client shares the proxy's address.
@@ -183,8 +192,9 @@ The API has a multi-stage Dockerfile that runs as a non-root user. The web app's
 
 - [docs/DECISIONS.md](docs/DECISIONS.md): every significant decision and what was learned
 - [docs/SECURITY.md](docs/SECURITY.md): the security model and its limits
+- [docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md): what is tested at each level, and what is not
 - [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md): the code review this work follows
 - [docs/ai-engineering-challenge-brief.md](docs/ai-engineering-challenge-brief.md): the challenge brief
 - The planning documents (schema, endpoints, components, Docker) were written before coding. Where they differ from the code, the code is the source of truth.
 
-**Last updated:** October 31, 2026
+**Last updated:** November 1, 2026
