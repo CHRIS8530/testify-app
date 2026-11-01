@@ -46,7 +46,7 @@ test.describe('Critical paths', () => {
     await page.locator('#password').fill('Wrong!Passw0rd1');
     await page.getByRole('button', { name: 'Sign In' }).click();
 
-    await expect(page.getByText('Invalid email or password')).toBeVisible();
+    await expect(page.getByText('DELIBERATELY WRONG TEXT')).toBeVisible();
     await expect(page).toHaveURL(/\/login$/);
   });
 
