@@ -1409,9 +1409,47 @@ The password stopped working on 7 October, so the leftover string in git history
 
 **Where the AI cost me time:** Nothing significant. I deleted the branch before looking at the PR page, so I did not capture whether the merge button was blocked.
 
-**Result:** RESOLVED for the main question. The `e2e` job failed in 1m 6s (CI RUN_NUMBER): 6 tests passed, and the wrong password test failed on the first try and on both retries. The `e2e` gate can fail. Limits: I did not capture the PR page, so the merge block is the behaviour GitHub documents for required checks and not something I recorded myself, and I did not record that `api` and `frontend` stayed green on that run.
+**Result:** RESOLVED for the main question. The `e2e` job failed in 1m 6s (the run on the `test/e2e-gate-fails` branch): 6 tests passed, and the wrong password test failed on the first try and on both retries. The `e2e` gate can fail. Limits: I did not capture the PR page, so the merge block is the behaviour GitHub documents for required checks and not something I recorded myself, and I did not record that `api` and `frontend` stayed green on that run.
 
 **Source verification:** The CI log of the failing run. Playwright documentation on retries. GitHub Docs on protected branches and required status checks.
+
+---
+
+### Decision 46: Integration Tests Against A Real PostgreSQL, And Bounded Paging
+
+**Date:** November 1, 2026
+
+**Context:** CODE_REVIEW.md 3.7 and 4.2, and brief 3.7: integration tests against a real database in a container. All API tests used the in-memory provider, which accepts things PostgreSQL rejects. A negative `offset` or `limit` on the test cases list is one of them: the in-memory database returns 200, PostgreSQL throws and the API answered 500. The list also had no sort order and no maximum page size.
+
+**What I asked the AI:** How to run the real API against a real PostgreSQL in a Testcontainers container, skip locally when Docker is missing, and prove the paging bug on a real database before fixing it.
+
+**What it gave me:**
+1. `PostgresApiFactory`: starts a `postgres:15-alpine` container, uses the real migrations through a non-Test environment, and skips when Docker is unavailable (but fails in CI, where `CI=true`).
+2. A smoke test (register, sign in, create and list a project) and a theory test that a negative `offset` or `limit` returns 400.
+3. The fix: `Paging.Validate` (limit 1 to 200, offset 0 or more, answers 400 `INVALID_PAGING`) and an `OrderBy` on the test cases list, plus in-memory tests so the rule can be seen red and green on my laptop.
+
+**What I changed and why:**
+1. Moved building the container from a field initializer into `InitializeAsync`. `Build()` throws when Docker is missing, and in the field initializer that happened before my `try/catch`, so every local `dotnet test` was red instead of skipped.
+2. Passed the image name to the builder constructor, because the parameterless one is obsolete (a build warning said so).
+3. Wrote the test first and watched it fail on GitHub: `Failed: 2, Passed: 73, Skipped: 0, Total: 75`, with PostgreSQL's own errors `LIMIT must not be negative` and `OFFSET must not be negative`. Then added the fix and the local tests: red `Failed: 4` locally, then `Failed: 0, Passed: 78, Skipped: 3, Total: 81` after the fix.
+4. After the merge the CI run on `main` showed `Failed: 0, Passed: 81, Skipped: 0, Total: 81`, which proves the three PostgreSQL tests really ran in CI and were not skipped.
+5. Filled in the missing run reference in Decision 45, which had been left as a placeholder.
+
+**What I did not understand at first:**
+- A branch push alone runs nothing. The workflow only triggers on pull requests and pushes to `main`, so the red run only appeared once the pull request was open.
+- `new PostgreSqlBuilder().Build()` checks for Docker immediately. Where it runs decides whether a missing Docker is a skip or a crash.
+- PostgreSQL rejects a negative `LIMIT` or `OFFSET`, but the in-memory provider does not, which is the kind of difference the strategy doc predicted.
+- `Skip.IfNot` in a test only helps once the fixture has been built without throwing.
+- Paging with `Skip` and `Take` and no `OrderBy` gives no promised order, so the sort is part of the fix and not decoration.
+
+**Where the AI cost me time:**
+- The first version of the factory could not skip, and I committed it after a local run that showed one failure. It reached `main` and made `dotnet test` red locally until the fix.
+- The expected test count I was given was wrong (82 given, 81 real).
+- A leftover placeholder shipped in Decision 45 because the script that wrote it did not check for it.
+
+**Result:** RESOLVED for the test cases list. The CI run on `main` after the merge was green for `api`, `frontend` and `e2e`. Limits: defects, test runs, audit logs and the projects list still have no bounds check or total count, only the test cases list was fixed, and only negative paging has a PostgreSQL test so far.
+
+**Source verification:** PostgreSQL's error text in the failing CI log. Testcontainers for .NET build warning about the obsolete constructor. Microsoft Learn on EF Core paging and ordering. GitHub Docs on workflow triggers for `pull_request` and `push`.
 
 ---
 
