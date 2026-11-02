@@ -63,7 +63,7 @@ The API reads `ConnectionStrings__DefaultConnection`, `JWT_SECRET` and `CORS_ALL
 
 ## Testing
 
-The API tests (xUnit, in-memory database) cover authorization, the audit log, token handling, input validation, CORS and the hardening fixes. They run on every pull request and the checks are required before merging. Not covered yet: rate limiting, behaviour on a real PostgreSQL database, and end to end browser tests in CI.
+The API tests (xUnit, in-memory database) cover authorization, the audit log, token handling, input validation, CORS and the hardening fixes. They run on every pull request and the checks are required before merging. Three tests also run on a real PostgreSQL in a container, and the browser tests run in CI. Not covered yet: rate limiting, and most behaviour on a real PostgreSQL database.
 
 ## Known limitations
 
