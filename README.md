@@ -41,7 +41,7 @@ flowchart LR
 | API | C#, .NET 10, ASP.NET Core controllers, Entity Framework Core |
 | Database | PostgreSQL (Render for the shared database) |
 | Web | React 19, TypeScript, Vite, react-router v6, plain CSS |
-| API tests | xUnit with the in-memory database |
+| API tests | xUnit, mostly on the in-memory database, plus 3 tests on a real PostgreSQL in a Testcontainers container |
 | Browser tests | Playwright (Chromium), 8 tests, run locally and in CI |
 | CI | GitHub Actions |
 
@@ -94,13 +94,13 @@ Nothing environment-specific is baked into the code. Settings come from configur
 
 The test levels, what each covers and what is not covered are in [docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md).
 
-**API tests** (72 tests, xUnit, in-memory database):
+**API tests** (81 tests, xUnit: 78 on the in-memory database and 3 on a real PostgreSQL in a container):
 
 ```bash
 dotnet test api.tests
 ```
 
-They cover authorization, the audit log, token handling, input validation, CORS, the pass rate rule, run summaries and the dashboard. New API behaviour is written test first.
+They cover authorization, the audit log, token handling, input validation, CORS, the pass rate rule, run summaries and the dashboard. New API behaviour is written test first. The 3 PostgreSQL tests need Docker: without it they skip on a laptop, and in CI a missing Docker fails the run.
 
 **Web app checks:**
 
@@ -178,8 +178,8 @@ The API has a multi-stage Dockerfile that runs as a non-root user. The web app's
 - Not deployed, and the container setup is not proven (see above).
 - The OpenAPI specification is not served.
 - The browser tests use Chromium only. See [docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md) for what is and is not covered.
-- The API tests use the in-memory database, not a real PostgreSQL. Behaviour that differs between the two is not covered.
-- Lists have no maximum page size and no total count, and the test cases list has no sort order. The framework's own 400 errors use a different shape from the API's.
+- Most API tests use the in-memory database. Only 3 tests run on a real PostgreSQL (a smoke test and negative paging values), so other behaviour that differs between the two is not covered.
+- Only the test cases list has a paging bounds check (limit 1 to 200) and a sort order. The other lists have neither, and no list returns a total count. The framework's own 400 errors use a different shape from the API's.
 - Rate limiting is one global limit per IP. There is no stricter limit on sign in, and behind a proxy every client shares the proxy's address.
 - CORS allows any method and header from the allowed origins.
 - Inviting a member has no screen, the emailed link goes nowhere, and emails are mocked and written to the server log. There is no endpoint to list a project's members.

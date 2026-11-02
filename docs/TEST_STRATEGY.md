@@ -14,7 +14,7 @@ API changes are written test first. The test is run before the change and must f
 |---|---|---|---|
 | Static checks | Formatting, type errors in the app and in the browser tests, lint | `dotnet format`, `tsc -b`, `oxlint`, run in CI | Cheap, catches a whole class of mistakes before any test runs. A frontend that did not compile once reached main because CI did not type-check. The browser test files are type checked too, so a typo in a test cannot hide until it runs. |
 | Unit | The pass rate rule (`RunStats.PassRate`), including empty runs and exact halves | `api.tests/RunStatsTests.cs` | Pure arithmetic with edge cases (12.5 must round to 13 everywhere), so it is tested directly and fast. |
-| API integration | The real API through HTTP with `WebApplicationFactory` and an in-memory database: authorization for every role, the audit log scope, token hashing and rotation, input validation, CORS, run summaries, the dashboard, defect rules | `api.tests/` (72 tests) | This is where the business rules live. Each test arranges its own users and projects, so tests do not depend on each other. |
+| API integration | The real API through HTTP with `WebApplicationFactory` and an in-memory database: authorization for every role, the audit log scope, token hashing and rotation, input validation, CORS, run summaries, the dashboard, defect rules | `api.tests/` (81 tests: 78 in-memory, 3 on a real PostgreSQL) | This is where the business rules live. Each test arranges its own users and projects, so tests do not depend on each other. |
 | End to end | A real browser against the real API and web app | `frontend/tests/e2e/` (8 tests, Playwright, Chromium) | Proves the screens, the API and the sign in flow work together, which no lower level can. |
 
 ## End to end tests
@@ -40,11 +40,11 @@ Each test creates its own user with a unique email, so there is no shared seeded
 
 ## Test data
 
-API tests use the in-memory database and a fresh user per test. Browser tests run against an API started in the Test environment, in CI and locally, so no real database is touched and nothing needs cleaning up afterwards. The secrets used by the CI job are made up for that job only.
+Most API tests use the in-memory database and a fresh user per test. The PostgreSQL tests start a throwaway postgres:15-alpine container with Testcontainers and apply the real migrations. They skip when Docker is missing, but in CI a missing Docker fails the run. Browser tests run against an API started in the Test environment, in CI and locally, so no real database is touched and nothing needs cleaning up afterwards. The secrets used by the CI job are made up for that job only.
 
 ## What is not covered yet
 
-- **A real PostgreSQL.** The in-memory database behaves differently in ways that hid bugs before: string comparison is case sensitive on PostgreSQL, a negative offset is a SQL error, and raw SQL does not run. Integration tests against a real PostgreSQL in a container are planned.
+- **A real PostgreSQL.** The in-memory database behaves differently in ways that hid bugs before: string comparison is case sensitive on PostgreSQL, a negative offset is a SQL error, and raw SQL does not run. Only 3 tests run on a real PostgreSQL so far (a smoke test and negative paging values), so the other differences are still not covered.
 - **Rate limiting.** The limit exists but has no automated test, and the browser tests raise it.
 - **Other browsers.** Only Chromium is used.
 - **Role boundaries in the browser.** Editor and viewer limits are tested at the API level only, because there is no screen to invite a member yet.
