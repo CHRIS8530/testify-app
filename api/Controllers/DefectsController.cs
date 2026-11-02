@@ -32,6 +32,11 @@ public class DefectsController : ControllerBase
     {
         var (denied, _) = await this.RequireProjectAccessAsync(_db, projectId, ProjectRole.Viewer);
         if (denied is not null) return denied;
+
+        var pagingError = Paging.Validate(limit, offset);
+        if (pagingError is not null)
+            return BadRequest(new { error = new { message = pagingError, code = "INVALID_PAGING" }, status = 400 });
+
         var testCaseIds = await _db.TestCases
             .Where(tc => tc.ProjectId == projectId)
             .Select(tc => tc.Id)
@@ -40,6 +45,7 @@ public class DefectsController : ControllerBase
         var defects = await _db.Defects
             .Where(d => testCaseIds.Contains(d.TestCaseId))
             .OrderByDescending(d => d.CreatedAt)
+            .ThenByDescending(d => d.Id)
             .Skip(offset)
             .Take(limit)
             .ToListAsync();
