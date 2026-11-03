@@ -28,14 +28,22 @@ public class ProjectsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetProjects()
+    public async Task<IActionResult> GetProjects([FromQuery] int limit = 50, [FromQuery] int offset = 0)
     {
         var userId = GetUserIdFromToken();
         if (userId == Guid.Empty)
             return Unauthorized(new { error = new { message = "Unauthorized", code = "UNAUTHORIZED" }, status = 401 });
 
+        var pagingError = Paging.Validate(limit, offset);
+        if (pagingError is not null)
+            return BadRequest(new { error = new { message = pagingError, code = "INVALID_PAGING" }, status = 400 });
+
         var projects = await _db.Projects
             .Where(p => p.OwnerId == userId || p.Members.Any(m => m.UserId == userId))
+            .OrderByDescending(p => p.CreatedAt)
+            .ThenByDescending(p => p.Id)
+            .Skip(offset)
+            .Take(limit)
             .ToListAsync();
         return Ok(projects);
     }
