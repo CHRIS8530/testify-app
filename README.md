@@ -179,7 +179,7 @@ The API has a multi-stage Dockerfile that runs as a non-root user. The web app's
 - The OpenAPI specification is not served.
 - The browser tests use Chromium only. See [docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md) for what is and is not covered.
 - Most API tests use the in-memory database. Only 3 tests run on a real PostgreSQL (a smoke test and negative paging values), so other behaviour that differs between the two is not covered.
-- Only the test cases and defects lists have a paging bounds check (limit 1 to 200) and a sort order. The other lists have neither, and no list returns a total count. The framework's own 400 errors use a different shape from the API's.
+- Only the test cases, defects and projects lists have a paging bounds check (limit 1 to 200) and a sort order. The other lists have neither, and no list returns a total count. The framework's own 400 errors use a different shape from the API's.
 - Rate limiting is one global limit per IP. There is no stricter limit on sign in, and behind a proxy every client shares the proxy's address.
 - CORS allows any method and header from the allowed origins.
 - Inviting a member has no screen, the emailed link goes nowhere, and emails are mocked and written to the server log. There is no endpoint to list a project's members.
