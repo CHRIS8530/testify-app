@@ -38,6 +38,10 @@ public class AdminController : ControllerBase
         if (requestingUserId == Guid.Empty)
             return Unauthorized(new { error = new { message = "Unauthorized", code = "UNAUTHORIZED" }, status = 401 });
 
+        var pagingError = Paging.Validate(limit, offset);
+        if (pagingError is not null)
+            return BadRequest(new { error = new { message = pagingError, code = "INVALID_PAGING" }, status = 400 });
+
         // A user can read audit entries for their own actions and for any project they own.
         // There is no admin role, so nobody can read the activity of unrelated users.
         var ownedProjectIds = _db.Projects.Where(p => p.OwnerId == requestingUserId).Select(p => (Guid?)p.Id);
@@ -64,6 +68,7 @@ public class AdminController : ControllerBase
         // Apply pagination
         var logs = await query
             .OrderByDescending(al => al.Timestamp)
+            .ThenByDescending(al => al.Id)
             .Skip(offset)
             .Take(limit)
             .Include(al => al.User)
