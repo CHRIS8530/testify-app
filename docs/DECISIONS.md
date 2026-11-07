@@ -1453,6 +1453,43 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 47: Every List Rejects Bad Paging Values And Has A Stable Order
+
+**Date:** November 7, 2026
+
+**Context:** CODE_REVIEW.md 3.7. Decision 46 fixed the test cases list after a real PostgreSQL showed that a negative `offset` or `limit` answers 500, and that no list had a maximum page size. The same hole was in the defects, projects, test runs and audit log lists.
+
+**What I asked the AI:** To apply the shared `Paging.Validate` rule to each remaining list, one list per pull request, written test first, and to keep the response bodies unchanged so the frontend does not break.
+
+**What it gave me:**
+1. For each list, a test file with the four invalid values (`offset=-5`, `limit=-1`, `limit=0`, `limit=201`) and one test for the largest allowed page (`limit=200`).
+2. A change in each controller that calls `Paging.Validate` and answers 400 `INVALID_PAGING`.
+3. A tiebreaker on `Id` after the main sort, so rows with the same timestamp never swap places between pages.
+4. A line in the README known limitations for each list, updated in the same pull request.
+
+**What I changed and why:**
+1. One list per pull request, with the red run seen before the fix. Defects: `Failed: 4`, then `Passed: 83` (86 in total). Test runs: `Failed: 4, Passed: 90`, then `Passed: 94` (97 in total). Audit log: `Failed: 4, Passed: 95`, then `Passed: 99` (102 in total). The projects list was done in another session with 6 new tests (86 to 92 in total), and I did not record its red run here.
+2. After each controller change I ran `git diff --stat` and compared it with what I expected. The test runs diff was 5 insertions and no deletions, where I had been told 6, so I trusted the output and not the estimate.
+3. The paging check sits after the access check, so a caller with no access still gets 401 or 403 and never learns anything from a 400.
+4. In the audit log, the paging check sits after the sign in check, so an anonymous caller still gets 401. The existing five audit log tests still pass because the default limit of 100 is inside the allowed range.
+5. I kept every response body as it was. Wrapping a list as `{ items, total }` would break the frontend, which reads a plain array with `Array.isArray`.
+
+**What I did not understand at first:**
+- Sorting by one column is not enough for paging. Two rows with the same timestamp can come back in a different order on the next query, so a row can appear on two pages or on none. A second sort key that is unique (`Id`) makes the order stable.
+- A default page size is also a limit. The Projects page does not pass a limit, so it shows the newest 50 projects. That is fine today, but it needs a total count and a "next page" before a user can have more.
+- Only the audit log returns a total count, because it already had one before this work.
+- A `git pull` made between two commits on a feature branch can open a merge message editor (nano). `Ctrl+X` closes it, and the merge is recorded.
+
+**Where the AI cost me time:**
+- A guessed diff size (6 insertions) did not match the real one (5), which is why I now compare against the output and not the estimate.
+- Switching AI in the middle of the defects pull request repeated a step and opened the merge editor. Switching between pull requests has been fine.
+
+**Result:** RESOLVED for the test cases, defects, projects, test runs and audit log lists. Limits: the test run results list is still unbounded, only the audit log returns a total count, the Projects page shows at most the newest 50 projects, and none of these lists has a test on a real PostgreSQL except the test cases list.
+
+**Source verification:** The PostgreSQL error text in the CI log from Decision 46 (`LIMIT must not be negative`, `OFFSET must not be negative`). Microsoft Learn on EF Core paging and ordering. The CI runs on `main` after each merge.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: November 1, 2026
+Last updated: November 7, 2026
