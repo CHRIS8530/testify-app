@@ -74,8 +74,13 @@ public class TestRunsController : ControllerBase
         var (denied, _) = await this.RequireProjectAccessAsync(_db, projectId, ProjectRole.Viewer);
         if (denied is not null) return denied;
 
+        var pagingError = Paging.Validate(limit, offset);
+        if (pagingError is not null)
+            return BadRequest(new { error = new { message = pagingError, code = "INVALID_PAGING" }, status = 400 });
+
         var runs = await RunsWithCounts(projectId)
             .OrderByDescending(r => r.CreatedAt)
+            .ThenByDescending(r => r.Id)
             .Skip(offset)
             .Take(limit)
             .ToListAsync();
