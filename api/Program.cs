@@ -29,6 +29,8 @@ builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>()
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+// Builds the OpenAPI document from the controllers. It is served at /openapi/v1.json.
+builder.Services.AddOpenApi();
 
 // Origins the browser may call the API from, as a comma separated list.
 // Read here, while services are being registered, because the CORS policy is built now.
@@ -87,6 +89,8 @@ app.UseMiddleware<SecurityHeadersMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
+// Serves the generated OpenAPI document at /openapi/v1.json (brief 3.2).
+app.MapOpenApi();
 
 if (!app.Environment.IsEnvironment("Test"))
 {

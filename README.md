@@ -158,7 +158,7 @@ Base path `/api/v1`. Errors from the API's own code look like `{ "error": { "mes
 | Audit log | `GET /admin/logs` (your own actions and the projects you own) |
 | Health | `GET /health` |
 
-An OpenAPI specification is not served yet.
+The OpenAPI document is served at `/openapi/v1.json`, generated from the controllers, with no sign in needed.
 
 ## Deployment
 
@@ -176,7 +176,7 @@ The API has a multi-stage Dockerfile that runs as a non-root user. The web app's
 ## Known limitations
 
 - Not deployed, and the container setup is not proven (see above).
-- The OpenAPI specification is not served.
+- The OpenAPI document has the default title and no description, it does not describe the Bearer token each endpoint needs, and it lists only a 200 response for every endpoint (the API also answers 201, 204, 400, 401, 403 and 404).
 - The browser tests use Chromium only. See [docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md) for what is and is not covered.
 - Most API tests use the in-memory database. Only 3 tests run on a real PostgreSQL (a smoke test and negative paging values), so other behaviour that differs between the two is not covered.
 - Only the test cases, defects, projects, test runs and audit log lists have a paging bounds check (limit 1 to 200) and a sort order. The test run results list has neither, and only the audit log returns a total count. The framework's own 400 errors use a different shape from the API's.
@@ -185,7 +185,7 @@ The API has a multi-stage Dockerfile that runs as a non-root user. The web app's
 - Inviting a member has no screen, the emailed link goes nowhere, and emails are mocked and written to the server log. There is no endpoint to list a project's members.
 - A defect's title, description and severity cannot be edited after it is raised, and nothing sets its resolved date.
 - Lint reports about ten warnings (React hook dependencies). They are warnings, not errors.
-- `Microsoft.OpenApi` 2.0.0 has a known high severity advisory (build warning NU1903), and findings from `npm audit` are not triaged. Dependabot is not configured.
+- Findings from `npm audit` are not triaged, and Dependabot is not configured.
 - More security limitations are listed in [docs/SECURITY.md](docs/SECURITY.md).
 
 ## Documentation

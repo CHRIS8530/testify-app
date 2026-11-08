@@ -1490,6 +1490,42 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 48: The OpenAPI Document Is Served, And Microsoft.OpenApi Is Upgraded Instead Of Removed
+
+**Date:** November 8, 2026
+
+**Context:** CODE_REVIEW.md 3.6 and 2.7, and brief 3.2, which asks for an OpenAPI spec served by the app. `Microsoft.AspNetCore.OpenApi` was referenced in the project, but `Program.cs` never called `AddOpenApi` or `MapOpenApi`, so `/openapi/v1.json` answered 404. Every `dotnet build` also printed warning NU1903 for `Microsoft.OpenApi` 2.0.0 (GHSA-v5pm-xwqc-g5wc). The review suggested removing that package because the spec was not served, but serving the spec is the reason to keep it.
+
+**What I asked the AI:** How to serve the spec with the built in generator, and how to clear the advisory without removing the package. I also asked for a written brief at the start of each pull request, so that another AI could pick the work up safely.
+
+**What it gave me:**
+1. A written PR brief: goal, branch, the expected red and green counts, the expected diff size, and a stop rule if any number differed.
+2. Six tests in `OpenApiTests`: the document is served as JSON without signing in, it declares an OpenAPI 3 version, and four main endpoints are listed.
+3. Four lines in `Program.cs` (`AddOpenApi` and `MapOpenApi`, with comments) and one line in the project file, a direct reference to `Microsoft.OpenApi` 2.7.5.
+4. Guarded edit scripts that stop if the text they look for is not there exactly once.
+
+**What I changed and why:**
+1. Wrote the tests first and saw them fail: `Failed: 6, Passed: 99, Skipped: 3, Total: 108`. After the change: `Failed: 0, Passed: 105, Skipped: 3, Total: 108`.
+2. Upgraded instead of removing. The advisory text (GitHub advisory GHSA-v5pm-xwqc-g5wc, CVE-2026-49451, read on osv.dev) says the fix is 2.7.5 for the 2.x line and 3.5.4 for the 3.x line. I stayed on 2.x, and the build succeeded with 0 errors and no NU1903 line, which answered the one open question in the brief: the two packages work together.
+3. Checked the diff size before committing: 5 insertions and no deletions (4 in `Program.cs`, 1 in the project file), as the brief said.
+4. Opened the real running API in a browser, not only the test host: `/openapi/v1.json` returned an OpenAPI 3.1.1 document titled `Testify.Api | v1` with every controller route listed.
+5. Updated the README and SECURITY.md in the same pull request, including the limits the document showed, and merged `main` into the branch before writing this entry, because the branch had been created before the last pull and would have clashed with Decision 47 in this file.
+
+**What I did not understand at first:**
+- `Microsoft.OpenApi` was not in my project file at all. It arrived through `Microsoft.AspNetCore.OpenApi`, which is why the warning named version 2.0.0. A direct reference to a higher version takes priority over the one that arrives indirectly.
+- The advisory is about parsing a crafted document with circular references, which can crash the process. The API only generates a document and never parses one from outside, so the real exposure was small. Upgrading still removes the warning and the scanner flag, and it is cheaper than explaining an open advisory.
+- Referencing a package is not the same as using it. Until `AddOpenApi` and `MapOpenApi` were called, the package sat in the project and the endpoint did not exist.
+- The generated document is correct about routes and request bodies but shallow. It lists one 200 response for every endpoint, so it does not say that creating returns 201 or that errors are 400, 401, 403 or 404, and it does not mention the Bearer token.
+- A branch made before pulling `main` starts from the old `main`. It still merges, but a docs edit at the end of a file that both sides changed would clash.
+
+**Where the AI cost me time:** Nothing significant. The tests, the build and the browser check all matched what the brief predicted.
+
+**Result:** RESOLVED. The brief's requirement is met: the app serves its OpenAPI document and the build no longer warns. Limits: the document has the default title and no description, lists only a 200 response per endpoint, does not describe the Bearer token, and is public in every environment. Adding response types and a security scheme would make it more useful to a reader of the spec.
+
+**Source verification:** GitHub advisory GHSA-v5pm-xwqc-g5wc (CVE-2026-49451) as shown on osv.dev: the affected ranges and the fixed versions. The `dotnet build` output (0 errors, no NU1903) and the generated document opened in the browser.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: November 7, 2026
+Last updated: November 8, 2026
