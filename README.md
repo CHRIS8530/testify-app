@@ -176,7 +176,7 @@ The API has a multi-stage Dockerfile that runs as a non-root user. The web app's
 ## Known limitations
 
 - Not deployed, and the container setup is not proven (see above).
-- The OpenAPI document has the default title and no description, and it does not describe the Bearer token each endpoint needs.
+- The OpenAPI document has the default title and no description, it does not describe the Bearer token each endpoint needs, and it lists only a 200 response for every endpoint (the API also answers 201, 204, 400, 401, 403 and 404).
 - The browser tests use Chromium only. See [docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md) for what is and is not covered.
 - Most API tests use the in-memory database. Only 3 tests run on a real PostgreSQL (a smoke test and negative paging values), so other behaviour that differs between the two is not covered.
 - Only the test cases, defects, projects, test runs and audit log lists have a paging bounds check (limit 1 to 200) and a sort order. The test run results list has neither, and only the audit log returns a total count. The framework's own 400 errors use a different shape from the API's.

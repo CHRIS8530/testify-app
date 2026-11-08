@@ -68,6 +68,7 @@ The API tests (xUnit, in-memory database) cover authorization, the audit log, to
 ## Known limitations
 
 - `npm audit` findings are not triaged and Dependabot is not configured.
+- The OpenAPI document at `/openapi/v1.json` is served without signing in, in every environment, so anyone can read the list of endpoints.
 - A refresh token that is reused after rotation is rejected, but this does not end the user's other sessions.
 - SameSite Strict needs the frontend and the API to share a site when deployed.
 - Invitations add the member straight away. The emailed link is not used, and emails are mocked.
