@@ -135,7 +135,7 @@ npx playwright test
 
 `playwright install` is only needed the first time. When you are done, stop the API with Ctrl+C and close that terminal, so the variables do not linger.
 
-**CI** runs on every pull request and on pushes to `main`. It has three jobs, and all three must pass before a pull request can be merged:
+**CI** runs on every pull request and on pushes to `main`. It has four jobs, and all four must pass before a pull request can be merged (`containers` is described under Container images below):
 
 - `api`: a format check and the API tests.
 - `frontend`: `npm ci`, lint, then the type-check and build.
