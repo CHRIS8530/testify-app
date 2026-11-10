@@ -1526,6 +1526,43 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 49: The API Image Builds And The Compose Stack Starts, Proven In CI
+
+**Date:** November 10, 2026
+
+**Context:** CODE_REVIEW.md 1.4 (the build and the port) and brief 3.3: `docker compose up` must give a working environment. The API Dockerfile ran `dotnet publish api/Testify.Api.csproj`, but compose built it with the `./api` folder as the context, so that path did not exist inside the build. Compose also mapped port 5000 to 5000 while the container listens on 8080. Docker Desktop does not start on my laptop (Decision 33), so the proof had to come from CI.
+
+**What I asked the AI:** For a CI job that proves the API image builds and the stack starts, written so that I could see it fail for the right reason before the fix, and then the smallest fix. I also asked it to start the pull request with a written brief that names the expected red result and the expected size of each diff.
+
+**What it gave me:**
+1. The brief: goal, branch, the expected red (`MSB1009`, project file does not exist), the files the fix may touch, and a stop rule.
+2. A `containers` job in `ci.yml`: check the compose file, build the API image, start postgres and the API, wait for `/api/v1/health`, check a CORS preflight from `http://localhost:3000`, print the image sizes, print the API log on failure, and always stop the stack.
+3. A rewritten `api/Dockerfile` and a three line change in `docker-compose.yml`.
+
+**What I changed and why:**
+1. Committed the CI job first and let it fail. The log showed the predicted error at the publish step: `MSBUILD : error MSB1009: Project file does not exist. Switch: api/Testify.Api.csproj`.
+2. Dockerfile: the build context is now the repo root, so the paths start with `api/`. The project file is copied and restored before the rest of the code, so the package restore is cached until the project file changes. The published files are copied with `--chown`, because the old `chown` ran before the copy and did nothing (review 4.4). The final image is still runtime only and still runs as a non-root user.
+3. Compose: `context: .`, `dockerfile: api/Dockerfile`, and `"5000:8080"`. The frontend lines and `VITE_API_URL` on port 5000 are unchanged, because the browser reaches the API through the published host port.
+4. Checked each diff against the brief: compose 3 insertions and 3 deletions, the Dockerfile 12 insertions and 7 deletions. The `ci.yml` diff showed 46 insertions and 1 deletion, not the "50 to 55 insertions and no deletions" I had been told. I looked at the removed line: it was the old last line, `retention-days: 7`, marked "No newline at end of file". The file had no final newline, and adding one makes Git show that line as removed and added again.
+5. After the fix all four checks were green. In the `containers` log: one `curl: (56) Recv failure: Connection reset by peer` and then `The API is healthy`; the preflight answered `Access-Control-Allow-Origin: http://localhost:3000`; the API image `testify-app-api` was 240MB and `postgres:15-alpine` was 292MB.
+
+**What I did not understand at first:**
+- The path in a `COPY` or in `dotnet publish` is relative to the build context, not to where the Dockerfile sits. Compose chose `./api` as the context, so anything outside that folder did not exist during the build. Moving the context to the repo root and naming the Dockerfile with a path fixes both.
+- A port mapping is host port, then container port. `"5000:5000"` published a port nothing was listening on, because the app listens on the 8080 set by `ASPNETCORE_URLS`. `EXPOSE` documents a port but does not publish one.
+- One failed health request is expected while the container starts. The published port can accept a connection before the app inside is ready, so the first request can be reset. The loop retries for up to a minute, so a single early failure is not a failure of the job.
+- The CORS preflight check proves more than a status code would: it shows that the `CORS_ALLOWED_ORIGINS` value from compose reaches the app inside the container.
+- The image list in the log also shows many images that are not mine (the runner's own tooling). Only `testify-app-api` and the postgres image belong to this project.
+
+**Where the AI cost me time:**
+- The expected size of the `ci.yml` diff was wrong (50 to 55 insertions and no deletions, where the real one was 46 and 1). The stop rule triggered, and checking it cost a round trip, but it found a harmless cause.
+- I pasted a second block while the first push was still printing, which mixed the output. The results were intact, but the terminal log was hard to read.
+
+**Result:** RESOLVED for the API image and the compose stack of postgres and the API, proven in CI. Limits: the web app container is not started (its Dockerfile still runs the Vite dev server), the compose file still uses local development defaults for the JWT secret and the database password, the 240MB image size has not been broken down by layer, and the `containers` check covers the build, the startup, the health endpoint and the CORS header, not the business rules. I made it a required check on `main` after its first green run. The job did fail when it should (the MSB1009 run), which is the evidence that it can fail.
+
+**Source verification:** The CI log of the failing run (the MSB1009 error at the publish step) and of the green run (health, CORS header, image sizes), and the diffs of `docker-compose.yml`, `api/Dockerfile` and `ci.yml`. Docker's documentation on the build context and on publishing ports is still to be read, and this line should say so once it has been.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: November 8, 2026
+Last updated: November 10, 2026

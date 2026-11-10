@@ -135,7 +135,7 @@ npx playwright test
 
 `playwright install` is only needed the first time. When you are done, stop the API with Ctrl+C and close that terminal, so the variables do not linger.
 
-**CI** runs on every pull request and on pushes to `main`. It has three jobs, and all three must pass before a pull request can be merged:
+**CI** runs on every pull request and on pushes to `main`. It has four jobs, and all four must pass before a pull request can be merged (`containers` is described under Container images below):
 
 - `api`: a format check and the API tests.
 - `frontend`: `npm ci`, lint, then the type-check and build.
@@ -171,11 +171,19 @@ Still to do: a production frontend image, a CI job that builds both images, an i
 
 ## Container images
 
-The API has a multi-stage Dockerfile that runs as a non-root user. The web app's Dockerfile is not production shaped yet (it runs the Vite dev server). `docker compose up` has not been proven end to end: Docker Desktop does not start on the development machine, so this is to be proven in CI. **Image sizes are not recorded yet**, because the images have not been built.
+The API has a multi-stage Dockerfile (`api/Dockerfile`) that runs as a non-root user. It builds from the repo root, and the final image holds only the ASP.NET runtime and the published files. The web app's Dockerfile is not production shaped yet (it runs the Vite dev server).
+
+The `containers` job in CI builds the API image, starts the database and the API with `docker compose up -d postgres api`, waits for `/api/v1/health` to answer, and checks that a CORS preflight from `http://localhost:3000` is allowed. Docker Desktop does not start on the development machine, so CI is where this is proven. The full stack with the web app has not been proven yet.
+
+| Image | Size | Where it was measured |
+|---|---|---|
+| API (`testify-app-api`) | 240 MB | CI, `docker image ls` (uncompressed) |
+| PostgreSQL (`postgres:15-alpine`, pulled, not built here) | 292 MB | the same CI run |
+| Web app | not recorded yet | |
 
 ## Known limitations
 
-- Not deployed, and the container setup is not proven (see above).
+- Not deployed, and the web app container is not production shaped yet (see above).
 - The OpenAPI document has the default title and no description, it does not describe the Bearer token each endpoint needs, and it lists only a 200 response for every endpoint (the API also answers 201, 204, 400, 401, 403 and 404).
 - The browser tests use Chromium only. See [docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md) for what is and is not covered.
 - Most API tests use the in-memory database. Only 3 tests run on a real PostgreSQL (a smoke test and negative paging values), so other behaviour that differs between the two is not covered.
