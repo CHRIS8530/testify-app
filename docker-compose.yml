@@ -40,10 +40,10 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    environment:
-      VITE_API_URL: http://localhost:5000
+      args:
+        VITE_API_URL: http://localhost:5000
     ports:
-      - "3000:5173"
+      - "3000:8080"
     depends_on:
       - api
     networks:
