@@ -182,6 +182,11 @@ jobs:
           js=$(grep -o '/assets/[^"]*\.js' /tmp/index.html | head -1)
           echo "The bundle is $js"
           curl -fsS "http://localhost:3000$js" | grep -q "http://localhost:5000"
+      - name: Check that the web app proxies the API
+        run: |
+          body=$(curl -fsS http://localhost:3000/api/v1/health)
+          echo "GET /api/v1/health through the web app answered: $body"
+          echo "$body" | grep -q '"status":"healthy"'
       - name: Show the image sizes
         run: docker image ls --format "{{.Repository}} {{.Tag}} {{.Size}}"
 
