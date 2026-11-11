@@ -159,6 +159,29 @@ jobs:
             echo "The web app image still contains Node"
             exit 1
           fi
+      - name: Start the web app
+        run: docker compose up -d frontend
+
+      - name: Check that the web app is served
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3000/ > /tmp/index.html; then break; fi
+            sleep 2
+          done
+          grep -q '<div id="root">' /tmp/index.html
+
+      - name: Check that a client side route falls back to the page
+        run: |
+          code=$(curl -s -o /tmp/route.html -w "%{http_code}" http://localhost:3000/projects/abc)
+          echo "GET /projects/abc answered $code"
+          [ "$code" = "200" ]
+          grep -q '<div id="root">' /tmp/route.html
+
+      - name: Check that the API address is baked into the bundle
+        run: |
+          js=$(grep -o '/assets/[^"]*\.js' /tmp/index.html | head -1)
+          echo "The bundle is $js"
+          curl -fsS "http://localhost:3000$js" | grep -q "http://localhost:5000"
       - name: Show the image sizes
         run: docker image ls --format "{{.Repository}} {{.Tag}} {{.Size}}"
 
