@@ -167,23 +167,25 @@ The OpenAPI document is served at `/openapi/v1.json`, generated from the control
 - A PostgreSQL database on Render (`testify-db-2`). The API applies migrations to it when it starts.
 - A CI pipeline that tests and builds, but does not deploy.
 
-Still to do: a production frontend image, a CI job that builds both images, an infrastructure file (`render.yaml`), the API and web app running over HTTPS, and a documented backup strategy.
+Still to do: a CI job that starts the whole stack together, an infrastructure file (`render.yaml`), the API and web app running over HTTPS, and a documented backup strategy.
 
 ## Container images
 
-The API has a multi-stage Dockerfile (`api/Dockerfile`) that runs as a non-root user. It builds from the repo root, and the final image holds only the ASP.NET runtime and the published files. The web app's Dockerfile is not production shaped yet (it runs the Vite dev server).
+The API has a multi-stage Dockerfile (`api/Dockerfile`) that runs as a non-root user. It builds from the repo root, and the final image holds only the ASP.NET runtime and the published files. The web app has its own multi-stage Dockerfile (`frontend/Dockerfile`). Node 22 builds the static site with `npm ci`, and the final image is `nginxinc/nginx-unprivileged`, which serves the files on port 8080 as user id 101, with no Node and no source in it. The API address is a build argument (`VITE_API_URL`, no default, so the build fails if it is missing), because Vite bakes it into the bundle at build time. `frontend/nginx.conf` sends any path that is not a real file to `index.html`, so a direct visit to a client side route works.
 
-The `containers` job in CI builds the API image, starts the database and the API with `docker compose up -d postgres api`, waits for `/api/v1/health` to answer, and checks that a CORS preflight from `http://localhost:3000` is allowed. Docker Desktop does not start on the development machine, so CI is where this is proven. The full stack with the web app has not been proven yet.
+The `containers` job in CI builds the API image, starts the database and the API with `docker compose up -d postgres api`, waits for `/api/v1/health` to answer, and checks that a CORS preflight from `http://localhost:3000` is allowed. It then builds the web app image and checks that it does not run as root and contains no Node. Docker Desktop does not start on the development machine, so CI is where this is proven. The web app container is built and checked, but it is not started: the whole stack running together has not been proven yet.
 
 | Image | Size | Where it was measured |
 |---|---|---|
-| API (`testify-app-api`) | 240 MB | CI, `docker image ls` (uncompressed) |
-| PostgreSQL (`postgres:15-alpine`, pulled, not built here) | 292 MB | the same CI run |
-| Web app | not recorded yet | |
+| API (`testify-app-api`) | 356 MB | CI run for PR #70, `docker image ls` |
+| Web app (`testify-app-frontend`) | 90.5 MB | the same CI run |
+| PostgreSQL (`postgres:15-alpine`, pulled, not built here) | 417 MB | the same CI run |
+
+Compare sizes within one run, not across runs. The same postgres tag showed 292 MB in an earlier CI run and 417 MB in this one, so the number depends on how the runner reports it as well as on the image.
 
 ## Known limitations
 
-- Not deployed, and the web app container is not production shaped yet (see above).
+- Not deployed, and the database, API and web app have not been started together in CI yet (see above).
 - The OpenAPI document has the default title and no description, it does not describe the Bearer token each endpoint needs, and it lists only a 200 response for every endpoint (the API also answers 201, 204, 400, 401, 403 and 404).
 - The browser tests use Chromium only. See [docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md) for what is and is not covered.
 - Most API tests use the in-memory database. Only 3 tests run on a real PostgreSQL (a smoke test and negative paging values), so other behaviour that differs between the two is not covered.
