@@ -147,6 +147,18 @@ jobs:
             -H "Access-Control-Request-Method: GET" \
             | grep -i "access-control-allow-origin: http://localhost:3000"
 
+      - name: Build the web app image
+        run: docker compose build frontend
+
+      - name: Check that the web app image is production shaped
+        run: |
+          user=$(docker run --rm --entrypoint id testify-app-frontend -u)
+          echo "The web app image runs as user id $user"
+          if [ "$user" = "0" ]; then echo "The web app image runs as root"; exit 1; fi
+          if docker run --rm --entrypoint sh testify-app-frontend -c 'command -v node' > /dev/null; then
+            echo "The web app image still contains Node"
+            exit 1
+          fi
       - name: Show the image sizes
         run: docker image ls --format "{{.Repository}} {{.Tag}} {{.Size}}"
 
