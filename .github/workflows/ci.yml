@@ -181,7 +181,7 @@ jobs:
         run: |
           js=$(grep -o '/assets/[^"]*\.js' /tmp/index.html | head -1)
           echo "The bundle is $js"
-          curl -fsS "http://localhost:3000$js" | grep -q "http://localhost:9999"
+          curl -fsS "http://localhost:3000$js" | grep -q "http://localhost:5000"
       - name: Show the image sizes
         run: docker image ls --format "{{.Repository}} {{.Tag}} {{.Size}}"
 
