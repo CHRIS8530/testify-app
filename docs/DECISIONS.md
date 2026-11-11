@@ -1602,9 +1602,48 @@ The password stopped working on 7 October, so the leftover string in git history
 - `stable-alpine` is a moving tag, not a pinned version, so the base image can change under a rebuild.
 - nginx sets none of the security headers that the API sets (HSTS, `X-Content-Type-Options`, `X-Frame-Options`, a Content-Security-Policy), so the static site has no security headers yet.
 - The API address is baked in at build time, so a different environment needs a new build.
-- I have not read Docker's or nginx's documentation on non-root images. That is still to do, and this entry will say so once it has been done.
+- nginx is not set up as a reverse proxy for `/api`, which would remove the need for CORS. That is a possible future change with its own pull request. I did not claim it here.
 
-**Source verification:** The CI log of the failing run (build passed, then `runs as user id 0` and `runs as root`) and of the green run (`runs as user id 101`, `testify-app-frontend` 90.5MB). The local `npm ci` and `npm run build` output. The diffs of `frontend/Dockerfile`, `frontend/nginx.conf`, `docker-compose.yml` and `ci.yml`.
+**Alternatives considered:**
+- Serve the built files from the API. Rejected: a UI-only change would need an API release and restart, and the API image would have to carry the web build.
+- A Node static server such as `serve`. Rejected: the CI check requires that the final image contains no Node, so it would fail that check by design.
+- Caddy. A reasonable option, and I read its static files quick start. I chose nginx for familiarity, and because there is an official non-root image (`nginx-unprivileged`, user id 101, port 8080).
+
+**Source verification:** Pages I opened: the nginx documentation for `try_files` (ngx_http_core_module, nginx.org), the NGINX Admin Guide "Serving Static Content" (docs.nginx.com), the `nginx-unprivileged` repository on GitHub and its Docker Hub page, and the Caddy static files quick start (caddyserver.com). Also the CI log of the failing run (build passed, then `runs as user id 0` and `runs as root`) and of the green run (`runs as user id 101`, `testify-app-frontend` 90.5MB). The local `npm ci` and `npm run build` output. The diffs of `frontend/Dockerfile`, `frontend/nginx.conf`, `docker-compose.yml` and `ci.yml`.
+
+---
+
+### Decision 51: The Whole Stack Starts In CI
+
+**Date:** November 11, 2026
+
+**Context:** CODE_REVIEW.md 4.1 and 1.4. Each container had been built or started on its own, but nothing showed the database, the API and the web app running together, that nginx serves the page, that a direct visit to a client side route works, or that the API address reached the bundle.
+
+**What I asked the AI:** For `containers` job steps that start the web app next to the API and database and check the site, written so that I could see a check fail first, with a brief before any code.
+
+**What it gave me:**
+1. The brief. It said I should not expect a natural red, because the image and the nginx config already existed, so the first commit would ask for a wrong API address on purpose.
+2. Four steps: start the web app, check `/` serves the page, check `/projects/abc` answers 200 with the same page, check the JavaScript bundle contains the API address.
+
+**What I changed and why:**
+1. Committed the checks with `http://localhost:9999` as the expected address (23 insertions). In CI the first three new steps were green and only the address check failed, after printing `The bundle is /assets/index-Bs4FNZar.js`. So the checks can fail, and the nginx fallback works in a real container.
+2. Changed the address to `http://localhost:5000` (1 insertion, 1 deletion). All four checks went green (`api` 46s, `containers` 59s, `e2e` 43s, `frontend` 19s).
+3. `e2e` had failed once before the fix, at the Playwright browser install step, with `Temporary failure resolving` for the Ubuntu package servers after 3 minutes 20 seconds. The runner could not reach the network, and the change only touched the `containers` job. The next run passed.
+4. Alternatives for the web server (nginx, Caddy, a Node server, the API) are recorded in Decision 50, with the pages I read.
+
+**What I did not understand at first:**
+- `curl -s` with `-w "%{http_code}"` prints the status code and lets the script test it, which is how the route check tells a real page from a 404.
+- The static file name has a hash (`index-Bs4FNZar.js`), so the check finds the bundle name in the HTML and does not hard code it.
+- A failing job is not always a failing change. The `e2e` red was the runner's network, and the only way to know was to read the log and run it again.
+
+**Where the AI cost me time:**
+- A research summary from another AI said nginx proxies `/api` and uses `nginx:alpine`. Neither is true for this repository, so I left both out of Decision 50.
+- The pull request was merged before the docs were written, so these docs needed their own pull request again.
+- I lost a round on a wrong inference about branch protection. The AI read a missing badge in a screenshot as proof, when I knew my own settings.
+
+**Result:** RESOLVED. The database, API and web app start together in CI, the site is served, the client side route falls back to the page, and the API address is in the bundle. Limits: no browser test runs against the container stack, the web app is not shown calling the API, the compose file still uses local development defaults for secrets, and nginx does not proxy `/api` (a reverse proxy would remove the CORS setup, and is a possible future pull request).
+
+**Source verification:** The CI logs of the red run (three new steps green, address check red) and the green run, and the failing `e2e` log (network errors, not our change).
 
 ---
 
