@@ -1563,6 +1563,51 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 50: The Web App Image Is A Production Build Served By Non-Root nginx
+
+**Date:** November 11, 2026
+
+**Context:** CODE_REVIEW.md 4.4 and brief 3.3. `frontend/Dockerfile` was 8 lines: Node 18 (Vite 8 needs 20.19 or newer), `npm install` instead of `npm ci`, `COPY . .` so all source and build tools shipped, `CMD ["npm", "run", "dev"]` so the Vite dev server was the production command, `ENV VITE_API_URL` baking one environment into the image, and no `USER`, so it ran as root.
+
+**What I asked the AI:** For a production frontend image that meets brief 3.3 (multi-stage, no build tools or source in the final image, non-root, nothing environment specific baked in), starting with a CI check that fails against the old Dockerfile, and a written brief before any code. I said nginx was fine as long as it fits the code review.
+
+**What it gave me:**
+1. The brief for the pull request: goal, what was wrong with the old file, the one real design question (the API address is baked in at build time), the files it expected to touch and a guard.
+2. Two steps for the `containers` job: build the web app image, then check that it does not run as root (`id -u`) and does not contain Node.
+3. A new `frontend/Dockerfile`, a new `frontend/nginx.conf`, and a change to the `frontend` service in `docker-compose.yml`.
+
+**What I changed and why:**
+1. Committed the CI check first. In CI the old image built fine (10 seconds) and then failed the new check with `The web app image runs as user id 0` and `The web app image runs as root`. `api`, `frontend` and `e2e` stayed green. Before this I ran `npm ci` and `npm run build` in `frontend` on my machine, and both worked, so the Dockerfile only had to repeat steps I had seen succeed.
+2. Dockerfile: a `node:22-alpine` build stage that copies the package files and runs `npm ci` first, so the install is cached until the lockfile changes, then builds the site. A final stage on `nginxinc/nginx-unprivileged:stable-alpine` that copies only the built `dist` folder and the nginx config. No Node and no source in the final image.
+3. `VITE_API_URL` is a build argument with no default, and the build stops with a clear message if it is empty. Compose passes `http://localhost:5000`. The old file set `http://localhost:5000/api/v1`, which also had the wrong shape, because the code adds the path itself (Decision 31).
+4. `nginx.conf` listens on 8080 and sends any path that is not a file to `index.html`, so opening `/projects/abc` directly works with the client side router.
+5. Compose: the address moved from `environment` to `build.args`, and the port mapping became `"3000:8080"`. The diff was 3 insertions and 3 deletions. The CI change was 12 insertions, where I had been told 13, and I used the real output.
+6. After the fix all four checks were green. The check printed `The web app image runs as user id 101`, and the image list showed `testify-app-frontend` at 90.5MB.
+
+**What I did not understand at first:**
+- Vite replaces `VITE_` variables with their values while it builds the bundle, so the address is part of the files that nginx serves. Setting an environment variable on the running container does nothing. That is why it has to be a build argument, and why one image cannot serve two environments without a rebuild.
+- An `ARG` exists only while the image is built. To make `npm run build` see it, the Dockerfile copies it into an `ENV` inside the build stage. That `ENV` does not reach the final stage, because the final stage starts from a different image.
+- A non-root process cannot listen on ports below 1024, so the nginx image meant for non-root use listens on 8080 and runs as user id 101. That is why the compose mapping changed from 5173 to 8080.
+- A single page app has no file for `/projects/abc`. Without the `try_files` fallback, nginx would answer 404 on a reload or a pasted link.
+- Using `--entrypoint` in the check overrides the nginx start command, so `id -u` and `command -v node` run inside the image without starting the server.
+- An image size is not only a property of the image. The same `postgres:15-alpine` tag showed 292MB in one CI run and 417MB in the next, and the API went from 240MB to 356MB, so the README records all three from one run and says not to compare across runs.
+
+**Where the AI cost me time:**
+- The expected size of the `ci.yml` change was wrong again (13 insertions, real 12). The terminal output is the referee.
+- I stopped giving a clickable pull request link in my replies, and you had to ask for it back.
+- I said the docs would go in before the merge, but the code PR was merged first, so the docs need their own small pull request, like the one after Decision 49.
+
+**Result:** RESOLVED. The web app image builds in CI, runs as a non-root user (id 101), contains no Node, and is 90.5MB in the CI run for PR #70. The check that proves it failed against the old Dockerfile first. Limits:
+- The web app container is built and checked but never started in CI, so nothing proves the database, API and web app work together yet. That is the next pull request.
+- `stable-alpine` is a moving tag, not a pinned version, so the base image can change under a rebuild.
+- nginx sets none of the security headers that the API sets (HSTS, `X-Content-Type-Options`, `X-Frame-Options`, a Content-Security-Policy), so the static site has no security headers yet.
+- The API address is baked in at build time, so a different environment needs a new build.
+- I have not read Docker's or nginx's documentation on non-root images. That is still to do, and this entry will say so once it has been done.
+
+**Source verification:** The CI log of the failing run (build passed, then `runs as user id 0` and `runs as root`) and of the green run (`runs as user id 101`, `testify-app-frontend` 90.5MB). The local `npm ci` and `npm run build` output. The diffs of `frontend/Dockerfile`, `frontend/nginx.conf`, `docker-compose.yml` and `ci.yml`.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: November 10, 2026
+Last updated: November 11, 2026
