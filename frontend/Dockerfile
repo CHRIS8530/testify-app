@@ -17,6 +17,6 @@ RUN npm run build
 # Stage 2: serve the files with nginx. No Node and no source in the final image.
 # This image runs as a non-root user (uid 101) and listens on 8080.
 FROM nginxinc/nginx-unprivileged:stable-alpine
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=builder /app/dist /usr/share/nginx/html
 EXPOSE 8080
