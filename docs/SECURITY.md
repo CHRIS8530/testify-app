@@ -40,7 +40,7 @@ This describes the code as it is today: what it protects, how, and what it does 
 
 ## CORS
 
-Allowed origins come from `CORS_ALLOWED_ORIGINS` (comma separated). The API stops at startup if it is missing or contains `*`. Credentials are allowed, because the refresh cookie needs them. Any method and any header are currently allowed, which should be narrowed.
+Allowed origins come from `CORS_ALLOWED_ORIGINS` (comma separated). The API stops at startup if it is missing or contains `*`. Credentials are allowed, because the refresh cookie needs them. Any method and any header are currently allowed, which should be narrowed. Behind the nginx proxy the browser calls the API on its own origin, so CORS is not used there. It still applies when the web app runs on another address, such as local development on port 5173.
 
 ## Rate limiting
 
@@ -70,7 +70,7 @@ The API tests (xUnit, in-memory database) cover authorization, the audit log, to
 - `npm audit` findings are not triaged and Dependabot is not configured.
 - The OpenAPI document at `/openapi/v1.json` is served without signing in, in every environment, so anyone can read the list of endpoints.
 - A refresh token that is reused after rotation is rejected, but this does not end the user's other sessions.
-- SameSite Strict needs the frontend and the API to share a site when deployed.
+- SameSite Strict needs the frontend and the API to share a site. In the container stack nginx proxies `/api`, so the browser sees one origin and the refresh cookie is sent. If the API were called directly from another site, the cookie would not be sent.
 - Invitations add the member straight away. The emailed link is not used, and emails are mocked.
 - Tokens that existed before they were hashed stopped working when that change was deployed.
 
