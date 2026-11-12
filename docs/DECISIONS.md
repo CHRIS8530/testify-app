@@ -1647,6 +1647,46 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 52: nginx Proxies /api So The Browser Sees One Origin
+
+**Date:** November 12, 2026
+
+**Context:** Deploying to Render (free plan) puts the web app and the API on different subdomains. The refresh cookie is `SameSite=Strict` (Decision 36), so a browser would not send it from one site to another and every reload would sign the user out. I believe two `onrender.com` subdomains count as different sites, but I have not verified that against the Public Suffix List. CORS would also have to be configured for the deployed address.
+
+**What I asked the AI:** For the options, with the cost of each. They were: nginx proxies `/api` so the browser sees one origin (A), a `SameSite=None` cookie (B), or a custom domain (C, which costs money). I need free services only, so I chose A.
+
+**What it gave me:**
+1. The three options, with a recommendation for A because it removes both the cookie problem and CORS, and it fits the single entry point idea from my nginx research.
+2. A brief that expected a red first: today nginx answers every unknown path with `index.html`, so `/api/v1/health` through the web app returns the page with a 200.
+3. A CI step that checks the body, then an nginx config template, a Dockerfile change, a compose change and an updated bundle check.
+
+**What I changed and why:**
+1. Committed the CI check first (5 insertions). It failed as predicted: `GET /api/v1/health through the web app answered: <!doctype html>...`, then exit code 1. `curl -f` alone would have passed, because the status was 200, which is why the check reads the body.
+2. `frontend/nginx.conf` became `frontend/nginx.conf.template` with a `location /api/` block that proxies to `${API_UPSTREAM}`. The image fills in `API_UPSTREAM` from the environment when the container starts, and the Dockerfile copies the template to `/etc/nginx/templates/`. The block sends `X-Forwarded-For` and `X-Forwarded-Proto`, turns on SNI for https upstreams, and sets a 90 second read timeout, because a free Render service sleeps when idle and takes about a minute to wake up.
+3. Compose: the web service gets `API_UPSTREAM: http://api:8080`, and the `VITE_API_URL` build argument is now `/`. The existing `config.ts` strips trailing slashes, so `/` becomes an empty base and every call goes to the page's own origin. No frontend code changed.
+4. The old bundle check asked for `http://localhost:5000`, which is now wrong by design. It became a check that the bundle does not contain `localhost:5000`, written as an explicit `if` so the step fails reliably.
+5. After the fix all four checks were green and all four showed Required (`api` 49s, `containers` 1m, `e2e` 1m, `frontend` 12s). The health step printed the API's JSON through the web app.
+
+**What I did not understand at first:**
+- A proxy changes who the API talks to. The API now sees nginx's address, not the visitor's, so audit log addresses and the rate limit key are nginx's until the API reads the forwarded headers.
+- The image only substitutes variables that exist in its environment. nginx's own variables such as `$uri` and `$scheme` in the template survived, which the green run showed.
+- A status 200 does not prove the right content. The red run answered 200 with HTML.
+- `proxy_pass` with no path after the address forwards the request path unchanged, so `/api/v1/health` reaches the API as `/api/v1/health`.
+
+**Where the AI cost me time:**
+- It told me a `curl -f` health check would be enough in an earlier idea, but the page fallback returns 200. I only saw the difference by reading the body in the red run.
+- The first brief guessed 6 inserted lines for the check, and the real number was 5.
+
+**Result:** RESOLVED for the container stack, proven in CI. Limits:
+- Nothing has run on Render yet. The proxy to an https upstream (`Host` header, SNI) and the 90 second wake-up timeout are untested.
+- The API sees nginx's address, so the audit log and the rate limit use the wrong client address until forwarded headers are read (review 2.7).
+- `API_UPSTREAM` has no default, so a container started without it fails to start.
+- CORS is still configured and still needed for local development on port 5173.
+
+**Source verification:** The CI logs of the red run (HTML answered) and the green run (health JSON through the web app), the checks list showing four Required checks, and the diffs of the five changed files. I have not yet read Render's Docker documentation on how environment variables reach a build. That is a question for the next pull request.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: November 11, 2026
+Last updated: November 12, 2026
