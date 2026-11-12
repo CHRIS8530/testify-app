@@ -177,11 +177,14 @@ jobs:
           [ "$code" = "200" ]
           grep -q '<div id="root">' /tmp/route.html
 
-      - name: Check that the API address is baked into the bundle
+      - name: Check that the bundle calls the API on its own origin
         run: |
           js=$(grep -o '/assets/[^"]*\.js' /tmp/index.html | head -1)
           echo "The bundle is $js"
-          curl -fsS "http://localhost:3000$js" | grep -q "http://localhost:5000"
+          if curl -fsS "http://localhost:3000$js" | grep -q "localhost:5000"; then
+            echo "The bundle still contains the old API address"
+            exit 1
+          fi
       - name: Check that the web app proxies the API
         run: |
           body=$(curl -fsS http://localhost:3000/api/v1/health)
