@@ -64,9 +64,12 @@ if (builder.Environment.IsEnvironment("Test"))
 }
 else
 {
+    // DATABASE_URL (a postgres:// URL, which is how Render hands over a database) is used when no connection string is set.
+    var databaseUrl = builder.Configuration["DATABASE_URL"];
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+        ?? (string.IsNullOrWhiteSpace(databaseUrl) ? null : DatabaseUrl.ToConnectionString(databaseUrl))
         ?? throw new InvalidOperationException(
-            "ConnectionStrings__DefaultConnection is not configured. Set it with 'dotnet user-secrets' locally or as an environment variable.");
+            "ConnectionStrings__DefaultConnection or DATABASE_URL is not configured. Set one with 'dotnet user-secrets' locally or as an environment variable.");
 
     builder.Services.AddDbContext<TestifyDbContext>(options =>
     {
