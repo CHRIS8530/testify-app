@@ -1,0 +1,58 @@
+# Describes the whole deployment on Render's free plan. Everything is in the Oregon region.
+# CI checks this file against Render's own schema on every pull request.
+
+databases:
+  - name: testify-db
+    plan: free
+    region: oregon
+    databaseName: testify
+    user: testify
+    # An empty list means no connections from outside Render. Only the services below can reach it.
+    ipAllowList: []
+
+services:
+  # The API. Render builds the same Dockerfile that CI builds.
+  - type: web
+    name: testify-api
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/v1/health
+    # Deploy a push to main only after its CI checks have passed.
+    autoDeployTrigger: checksPass
+    envVars:
+      # The container listens on 8080 (ASPNETCORE_URLS in the Dockerfile). Render's default is 10000.
+      - key: PORT
+        value: "8080"
+      # Render hands the database over as a URL. The API converts it (api/Services/DatabaseUrl.cs).
+      - key: DATABASE_URL
+        fromDatabase:
+          name: testify-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      # Needed at startup. Behind the nginx proxy the browser calls the API on its own origin, so CORS is not used.
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://testify-web.onrender.com
+
+  # The web app: nginx serving the built site and proxying /api to the API.
+  - type: web
+    name: testify-web
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    healthCheckPath: /
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: PORT
+        value: "8080"
+      # Render passes environment variables to the Docker build as build args. "/" means the same origin.
+      - key: VITE_API_URL
+        value: /
+      # Where nginx forwards /api to, with no trailing slash. If Render gives the API another address, change this.
+      - key: API_UPSTREAM
+        value: https://testify-api.onrender.com
