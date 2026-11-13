@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Testify.Api.Data;
+using Testify.Api.Filters;
 using Testify.Api.Middleware;
 using Testify.Api.Services;
 using AspNetCoreRateLimit;
@@ -27,7 +28,7 @@ builder.Services.Configure<IpRateLimitOptions>(options =>
 });
 builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
 
-builder.Services.AddControllers();
+builder.Services.AddControllers(options => options.Filters.Add<ErrorShapeFilter>());
 builder.Services.AddEndpointsApiExplorer();
 // Builds the OpenAPI document from the controllers. It is served at /openapi/v1.json.
 builder.Services.AddOpenApi();
