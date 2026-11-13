@@ -1687,6 +1687,45 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 53: The API Accepts A DATABASE_URL And Converts It For Npgsql
+
+**Date:** November 12, 2026
+
+**Context:** Deploying to Render. Render hands a service its database as a `postgres://` URL, and a Blueprint cannot join pieces of text together, so it cannot build the `Host=...;Username=...` string that Npgsql expects. Until now the API only read `ConnectionStrings:DefaultConnection`. `DATABASE_URL` had been set in the old compose file but no code ever read it (Decision 29). Reading it also means no database password is ever pasted or committed. I believed Npgsql does not accept a URL, but I have not run a test that shows it.
+
+**What I asked the AI:** How to let the Blueprint wire the database to the API without a pasted connection string, and to write it test first.
+
+**What it gave me:**
+1. A brief: the goal, the red I should expect (a compile error, because the class did not exist yet) and the files.
+2. Five tests for a new `DatabaseUrl.ToConnectionString`: host, port, database, user and password are read; port 5432 when the URL has none; the `postgresql://` scheme works; a percent-encoded password is decoded; anything that is not a postgres URL throws a `FormatException`.
+3. `api/Services/DatabaseUrl.cs` and a four line change in `Program.cs`: when `ConnectionStrings:DefaultConnection` is not set, `DATABASE_URL` is converted and used. The startup error now names both settings.
+
+**What I changed and why:**
+1. Committed the tests first. The `api` job failed at the test step with five errors, one per call site: `error CS0103: The name 'DatabaseUrl' does not exist in the current context` (lines 12, 25, 33, 41 and 52 of the test file). That is red for a missing class, not for a wrong answer, which I note because it proves less than a failing assertion does.
+2. Wrote the class and the fallback. The connection string wins when both are set, so user secrets and compose behave as before.
+3. Checked locally before committing: `dotnet format --verify-no-changes` printed nothing, the 7 new tests passed, and the whole suite showed `total: 115, failed: 0, succeeded: 112, skipped: 3`. The 3 skips are the PostgreSQL tests, which need Docker. The `Program.cs` diff was 4 insertions and 1 deletion, where I had been told 4 and 2, so I used the real output.
+4. After the push all four checks were green and I merged.
+5. Updated the README configuration table, SECURITY.md and the test counts in the same pull request as the Blueprint. The README and TEST_STRATEGY still said 81 tests, which had been out of date since Decision 46.
+
+**What I did not understand at first:**
+- A URL and a connection string describe the same thing in two shapes. Npgsql wants `Key=value;` pairs, and a URL puts the user, password, host, port and database in one address.
+- The user name and password in a URL are percent-encoded, so `p@ss` is written `p%40ss`. `Uri.UnescapeDataString` undoes that. Without it a password with a symbol would be wrong without any error.
+- `Uri.Port` is -1 when the URL has no port, so the code has to supply 5432 itself.
+- A compile error and a failing assertion are both red, but they prove different things. This red proves the tests exist and call the new class. The green runs are what show the conversion is right.
+
+**Where the AI cost me time:**
+- Its estimate of the `Program.cs` diff (4 insertions and 2 deletions) was off by one. The terminal output is the referee.
+- It expected the build to be quiet, but the test project prints a long `MSB3277` warning about two versions of `Microsoft.EntityFrameworkCore.Relational` (10.0.4 and 10.0.11). It is a warning, not an error, and it was there before this change.
+
+**Result:** RESOLVED. The API starts from a `DATABASE_URL` when no connection string is set, and 112 plus 3 tests pass. Limits:
+- Only the conversion is tested. No test connects to a PostgreSQL through a `DATABASE_URL`.
+- The converter sets no SSL mode. Render's internal connection and its external one may need different settings, and nothing has run on Render yet.
+- The `MSB3277` version conflict is still there and goes on the cleanup list.
+
+**Source verification:** The CI log of the red run (five CS0103 errors in the `api` job's test step), the local `dotnet test` output (7 of 7, then 112 passed and 3 skipped of 115), and the `git diff --stat` output. Render's Blueprint reference lists `connectionString` as a property a database can hand to a service. I have not yet confirmed the exact format of that string beyond that.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
 Last updated: November 12, 2026
