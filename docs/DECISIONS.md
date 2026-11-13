@@ -1726,6 +1726,52 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 54: render.yaml Describes The Deployment, Checked Against Render's Schema
+
+**Date:** November 12, 2026
+
+**Context:** CODE_REVIEW.md 4.3 and brief 3.4: infrastructure defined as code, with no setup that lives only in a dashboard. The only thing on Render was a free database, and that database expires 30 days after it is created. My earlier plan, written before I saw the expiry date, was to leave the database out of the Blueprint and paste its connection string. That was reversed once I saw that `testify-db-2` would be deleted on November 12.
+
+**What I asked the AI:** For an infrastructure file for Render that uses only free services, with the browser seeing one origin (Decision 52), written so that I could see a check fail first. I said I need free services only.
+
+**What it gave me:**
+1. A split of the work into two pull requests: `DATABASE_URL` support first (Decision 53), then the Blueprint.
+2. A CI step that downloads Render's JSON schema and validates `render.yaml` against it, committed before the file existed.
+3. `render.yaml` with one free database, two Docker web services, `PORT=8080` on both, and a README section with the deploy steps and the backup note.
+
+**What I changed and why:**
+1. Committed the schema check first. The `containers` job failed at that step with `FileNotFoundError: [Errno 2] No such file or directory: 'render.yaml'`, after the virtual environment, the package install and the schema download had all worked in 3 seconds. So the schema URL is reachable from the runner.
+2. Declared the database in the Blueprint and wired it with `fromDatabase`. A Blueprint can only wire a database it declares itself, so a hand-made database would have needed a pasted connection string.
+3. Set an empty `ipAllowList` so the database accepts no connections from outside Render.
+4. Used `autoDeployTrigger: checksPass` so a push to `main` deploys only after its checks have passed, which is the "deploy on merge" requirement without a separate pipeline.
+5. Passed `VITE_API_URL=/` as an ordinary environment variable. Render's Docker documentation says it injects a service's environment variables as build args, so the Dockerfile's `ARG` receives it, and the build fails with its own message if it does not.
+6. Wrote the two services' public addresses into the file as `testify-api.onrender.com` and `testify-web.onrender.com`, and put in the README what to change if Render picks other addresses.
+7. After the file was added all four checks were green, with the schema step passing.
+
+**What I did not understand at first:**
+- A Blueprint can only hand a service the connection details of a database it declares in the same file.
+- A web service on Render is told its port by the `PORT` variable and defaults to 10000. Ours listen on 8080, so the Blueprint has to say so.
+- A free web service sleeps after 15 minutes without traffic and takes about a minute to wake up. That is why nginx waits 90 seconds in Decision 52, and it is a real limit on how the app feels.
+- The 750 free hours a month are shared by all of a workspace's free web services. Two services that never slept would not fit, so the app depends on the sleeping.
+- A free database is deleted 30 days after it is created. The schema comes back through migrations, but the data does not, so "backup strategy" for a free app means knowing that and saying so.
+
+**Where the AI cost me time:**
+- It first advised against declaring the database, then reversed after the expiry notice. That cost a round.
+- It guessed 8 inserted lines for the schema check and the real number was 6.
+- Part of the Blueprint page I fetched was trimmed from my view before I could quote it, so I wrote the file from reading it and relied on the schema check to catch mistakes, not on my memory of the fields.
+
+**Result:** RESOLVED as a file that is valid against Render's schema. Nothing has been applied on Render yet. Limits:
+- I have not confirmed that an empty `ipAllowList` means no outside access, only that the schema accepts it.
+- I have not confirmed that the connection string `fromDatabase` supplies is the internal one, or that the converter accepts it.
+- The hard-coded `.onrender.com` addresses may differ from what Render assigns.
+- I believe a workspace can have only one free PostgreSQL database, so the old one has to be gone before applying.
+- Whether the build argument reaches the Dockerfile on Render is documented but not seen working.
+- The API still sees nginx's address instead of the visitor's (forwarded headers are still to do).
+
+**Source verification:** Render's Blueprint YAML reference (the fields and the JSON schema link), Render's page on using secrets with Docker (environment variables become build args), the CI log of the red run (the `FileNotFoundError` after a successful schema download) and the green run (`render.yaml is valid`).
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
 Last updated: November 12, 2026
