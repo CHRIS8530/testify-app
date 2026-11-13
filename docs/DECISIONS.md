@@ -1815,6 +1815,45 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 56: Every API Error Uses One Shape
+
+**Date:** November 13, 2026
+
+**Context:** CODE_REVIEW.md 3.8 and brief 3.2, which asks for one consistent error response shape across every endpoint. The API's own code returns `{ "error": { "message", "code" }, "status": 4xx }`, but anything the framework produces itself (malformed JSON, an id in the address that is not a Guid, and every bare `NotFound()`, which `[ApiController]` converts) comes out as ProblemDetails with `type`, `title` and `traceId`. Clients saw two shapes.
+
+**What I asked the AI:** For one consistent shape without rewriting every controller, written test first.
+
+**What it gave me:**
+1. The options: change every hand-written error to ProblemDetails (hundreds of lines, and every existing test and the frontend would see a new shape), replace the framework's error factories one by one, or rewrite ProblemDetails into our shape in one place.
+2. A brief that chose the third: one result filter. It said to expect three failures out of four tests, with the fourth (a wrong password keeps its own shape) passing before and after on purpose.
+3. `api/Filters/ErrorShapeFilter.cs`, registered globally in `Program.cs`.
+
+**What I changed and why:**
+1. Committed the four tests first. CI showed `Failed: 3, Passed: 126, Skipped: 0, Total: 129`, as predicted. All three failed with `KeyNotFoundException` at the line that reads the `error` property, which comes after the status assertion, so the status codes were already right and only the body shape was wrong.
+2. The filter is an `IAlwaysRunResultFilter`, because the automatic 400 for a bad request is produced by an action filter that short-circuits, and a plain result filter would not see it. It rewrites a ProblemDetails result and also a bare status code result (such as `NotFound()`), because I could not tell from here which of two framework filters runs first. Errors the controllers already shape are anonymous objects, so they pass through untouched.
+3. Messages are fixed text per status code, not copied from the framework, so no internal detail reaches the client.
+4. After the change the four tests passed, the whole suite ran with `failed: 0` locally (the 3 PostgreSQL tests skip without Docker), and all four checks were green in CI.
+
+**What I did not understand at first:**
+- Result filters and action filters are separate stages. The automatic 400 comes from an action filter, and an ordinary result filter does not run for a short-circuited result. `IAlwaysRunResultFilter` is the interface made for that.
+- `ValidationProblemDetails` is a kind of `ProblemDetails`, so one check catches both. A bare `NotFound()` is a different thing, a `StatusCodeResult` with no body, which `[ApiController]` turns into ProblemDetails later.
+- A test that asserts both the status and the body shape separates "the status is wrong" from "the shape is wrong". Here only the shape was wrong.
+- Anonymous types are compared by their members, so the filter returns a tuple for the message and code and builds the body once.
+
+**Where the AI cost me time:**
+- It could not say which of the two framework filters runs first, so the filter handles both. That is safe but covers a case I could not confirm happens.
+- I did not look at what changed on the runner. The CI log paths show the .NET SDK went from 10.0.404 (PR 7's red run) to 11.0.100. The build still targets net10.0 and everything ran, but I did not find out why.
+
+**Result:** RESOLVED for the errors the framework builds from ProblemDetails or a bare status code. Limits:
+- The body of an unhandled exception (a 500) is not covered. No endpoint throws, so I could not write the test first, and I left it out instead of shipping it untested.
+- Validation details are not passed on. A bad request says only that the request is not valid, so a client cannot tell which field failed.
+- Errors written by middleware, such as the rate limiter's 429 from AspNetCoreRateLimit, are not controller results, so this filter does not see them.
+- I have not read Microsoft's documentation on filters. That is still to do.
+
+**Source verification:** The CI log of the red run (three failures with their `KeyNotFoundException` at line 23 of the test file, `Failed: 3, Passed: 126, Total: 129`), the local `dotnet test` output, and the green CI run. I have not yet read Microsoft Learn's pages on ASP.NET Core filters and on handling errors in web APIs.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
 Last updated: November 13, 2026
