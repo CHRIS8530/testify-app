@@ -15,6 +15,7 @@ public class AuthController : ControllerBase
     private readonly IPasswordService _passwordService;
     private readonly IEmailService _emailService;
     private readonly IAuditLogService _auditLogService;
+    private readonly ILoginThrottle _loginThrottle;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
@@ -23,6 +24,7 @@ public class AuthController : ControllerBase
         IPasswordService passwordService,
         IEmailService emailService,
         IAuditLogService auditLogService,
+        ILoginThrottle loginThrottle,
         ILogger<AuthController> logger)
     {
         _db = db;
@@ -30,6 +32,7 @@ public class AuthController : ControllerBase
         _passwordService = passwordService;
         _emailService = emailService;
         _auditLogService = auditLogService;
+        _loginThrottle = loginThrottle;
         _logger = logger;
     }
 
@@ -130,9 +133,17 @@ public class AuthController : ControllerBase
         if (string.IsNullOrWhiteSpace(req.Email) || string.IsNullOrWhiteSpace(req.Password))
             return Unauthorized(new { error = new { message = "Email and password required", code = "INVALID_CREDENTIALS" }, status = 401 });
 
+        if (_loginThrottle.IsBlocked(req.Email))
+            return StatusCode(StatusCodes.Status429TooManyRequests, new { error = new { message = "Too many failed sign in attempts. Try again in a few minutes.", code = "TOO_MANY_ATTEMPTS" }, status = 429 });
+
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == req.Email);
         if (user == null || !_passwordService.VerifyPassword(req.Password, user.PasswordHash))
+        {
+            _loginThrottle.RecordFailure(req.Email);
             return Unauthorized(new { error = new { message = "Invalid email or password", code = "INVALID_CREDENTIALS" }, status = 401 });
+        }
+
+        _loginThrottle.Reset(req.Email);
 
         var accessToken = _jwtService.GenerateAccessToken(user.Id, user.Email, user.Username);
         await IssueRefreshTokenAsync(user.Id);

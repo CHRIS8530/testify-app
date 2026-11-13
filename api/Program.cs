@@ -81,6 +81,9 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IPasswordService, PasswordService>();
 builder.Services.AddScoped<IEmailService, MockEmailService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+// The throttle keeps its counts in memory, so it must outlive a single request.
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<ILoginThrottle, LoginThrottle>();
 
 var app = builder.Build();
 
