@@ -71,6 +71,7 @@ The API tests (xUnit, in-memory database) cover authorization, the audit log, to
 - The OpenAPI document at `/openapi/v1.json` is served without signing in, in every environment, so anyone can read the list of endpoints.
 - A refresh token that is reused after rotation is rejected, but this does not end the user's other sessions.
 - SameSite Strict needs the frontend and the API to share a site. In the container stack nginx proxies `/api`, so the browser sees one origin and the refresh cookie is sent. If the API were called directly from another site, the cookie would not be sent.
+- The deployed database is meant to accept connections only from the other Render services (an empty IP allow list in `render.yaml`). That has not been checked on Render yet.
 - Invitations add the member straight away. The emailed link is not used, and emails are mocked.
 - Tokens that existed before they were hashed stopped working when that change was deployed.
 
