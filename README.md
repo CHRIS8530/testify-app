@@ -96,7 +96,7 @@ Nothing environment-specific is baked into the code. Settings come from configur
 
 The test levels, what each covers and what is not covered are in [docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md).
 
-**API tests** (125 tests, xUnit: 122 on the in-memory database and 3 on a real PostgreSQL in a container):
+**API tests** (129 tests, xUnit: 126 on the in-memory database and 3 on a real PostgreSQL in a container):
 
 ```bash
 dotnet test api.tests
@@ -145,7 +145,7 @@ npx playwright test
 
 ## API
 
-Base path `/api/v1`. Errors from the API's own code look like `{ "error": { "message": "...", "code": "..." }, "status": 400 }`.
+Base path `/api/v1`. Every error looks like `{ "error": { "message": "...", "code": "..." }, "status": 400 }`. Errors the framework produces itself (malformed JSON, a bad id in the address, a bare `NotFound()`) are rewritten into this shape by a result filter.
 
 | Area | Endpoints |
 |---|---|
@@ -208,7 +208,7 @@ Compare sizes within one run, not across runs. The same postgres tag showed 292 
 - The OpenAPI document has the default title and no description, it does not describe the Bearer token each endpoint needs, and it lists only a 200 response for every endpoint (the API also answers 201, 204, 400, 401, 403 and 404).
 - The browser tests use Chromium only. See [docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md) for what is and is not covered.
 - Most API tests use the in-memory database. Only 3 tests run on a real PostgreSQL (a smoke test and negative paging values), so other behaviour that differs between the two is not covered.
-- Only the test cases, defects, projects, test runs and audit log lists have a paging bounds check (limit 1 to 200) and a sort order. The test run results list has neither, and only the audit log returns a total count. The framework's own 400 errors use a different shape from the API's.
+- Only the test cases, defects, projects, test runs and audit log lists have a paging bounds check (limit 1 to 200) and a sort order. The test run results list has neither, and only the audit log returns a total count. The body of an unhandled exception (a 500) is not covered by the error shape filter.
 - Rate limiting is one global limit per IP, and behind a proxy every client shares the proxy's address. Sign in has a per email throttle (5 failures in 15 minutes, then 429), kept in memory, so it resets on a restart and anyone who knows an email can block it for a while.
 - CORS allows any method and header from the allowed origins.
 - Inviting a member has no screen, the emailed link goes nowhere, and emails are mocked and written to the server log. There is no endpoint to list a project's members.
