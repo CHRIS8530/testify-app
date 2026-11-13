@@ -12,7 +12,7 @@ This describes the code as it is today: what it protects, how, and what it does 
 | A04 Insecure Design | Partly | Access tokens last 15 minutes, refresh tokens rotate, roles follow least privilege. Missing: a formal threat model, detection of a stolen refresh token being reused, account lockout. |
 | A05 Security Misconfiguration | Partly | Security headers are set, CORS only allows the configured origins (never `*`), and the API refuses to start without its secrets. Missing: CORS still allows any method and header, and `AllowedHosts` is `*`. |
 | A06 Vulnerable Components | Partly | The `Microsoft.OpenApi` advisory (GHSA-v5pm-xwqc-g5wc) is fixed by upgrading to 2.7.5. `npm audit` reports 3 frontend vulnerabilities and Dependabot is not configured, so those are not triaged yet. |
-| A07 Authentication Failures | Partly | Password rules, short lived JWT access tokens, an httpOnly, Secure, SameSite Strict refresh cookie limited to `/api/v1/auth`, and single use reset tokens that expire after 1 hour. Covered by `TokenSecurityTests`. Missing: multi factor authentication, lockout, and stricter limits on login attempts. |
+| A07 Authentication Failures | Partly | Password rules, short lived JWT access tokens, an httpOnly, Secure, SameSite Strict refresh cookie limited to `/api/v1/auth`, and single use reset tokens that expire after 1 hour. Covered by `TokenSecurityTests`. Failed sign ins are throttled per email (5 within 15 minutes, then 429). Missing: multi factor authentication, and a block that survives an API restart. |
 | A08 Software and Data Integrity | Partly | Changes reach main through pull requests with required checks, the frontend installs from the lockfile (`npm ci`), and the schema changes through migrations. Missing: signed commits and artifact signing. |
 | A09 Logging and Monitoring | Partly | Writes and sign in events go to an audit log (who, what, which project, IP address, when). Missing: failed sign ins are not recorded, there is no central logging or alerting, and the IP address is the proxy's when deployed behind one. |
 | A10 Server Side Request Forgery | Not applicable | The server makes no outgoing requests based on user input. |
@@ -44,7 +44,7 @@ Allowed origins come from `CORS_ALLOWED_ORIGINS` (comma separated). The API stop
 
 ## Rate limiting
 
-A global limit of 100 requests per minute per IP address (AspNetCoreRateLimit). There is no stricter limit on sign in and registration yet, and behind a proxy every client shares the proxy's address until forwarded headers are configured.
+A global limit of 100 requests per minute per IP address (AspNetCoreRateLimit). Behind a proxy every client shares the proxy's address until forwarded headers are configured, so this limit is weak on its own. Sign in has a second limit that does not depend on addresses: after 5 failed attempts for an email within 15 minutes, further attempts for that email get 429 with the code `TOO_MANY_ATTEMPTS`, even with the right password. A successful sign in clears the count, and unknown emails are counted too, so the response does not reveal whether an account exists. The counts are kept in memory, so they reset when the API restarts and are not shared between instances. Someone who knows an email can block it for up to 15 minutes by failing on purpose. Registration has no stricter limit.
 
 ## Security headers
 
