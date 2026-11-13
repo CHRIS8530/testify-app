@@ -84,7 +84,8 @@ Nothing environment-specific is baked into the code. Settings come from configur
 
 | Name | Used by | What it is |
 |---|---|---|
-| `ConnectionStrings__DefaultConnection` | API | The PostgreSQL connection string. The API stops at startup if it is missing. |
+| `ConnectionStrings__DefaultConnection` | API | The PostgreSQL connection string. The API stops at startup if neither this nor `DATABASE_URL` is set. |
+| `DATABASE_URL` | API | A `postgres://` URL, used when no connection string is set. This is how Render hands a service its database. |
 | `JWT_SECRET` | API | The key that signs access tokens. |
 | `CORS_ALLOWED_ORIGINS` | API | Comma separated list of web app addresses allowed to call the API, never `*`. Development gets `http://localhost:5173` from `api/appsettings.Development.json`. Every other environment must set it. |
 | `RATE_LIMIT_PER_MINUTE` | API | Requests allowed per minute per IP address. 100 when it is not set. The browser tests raise it, because they make many requests from one address. |
@@ -95,7 +96,7 @@ Nothing environment-specific is baked into the code. Settings come from configur
 
 The test levels, what each covers and what is not covered are in [docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md).
 
-**API tests** (81 tests, xUnit: 78 on the in-memory database and 3 on a real PostgreSQL in a container):
+**API tests** (115 tests, xUnit: 112 on the in-memory database and 3 on a real PostgreSQL in a container):
 
 ```bash
 dotnet test api.tests

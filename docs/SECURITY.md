@@ -59,7 +59,7 @@ Every API response includes:
 
 ## Secrets and configuration
 
-The API reads `ConnectionStrings__DefaultConnection`, `JWT_SECRET` and `CORS_ALLOWED_ORIGINS` from configuration: user secrets locally, environment variables when deployed. The frontend reads `VITE_API_URL`. Nothing secret is committed, `.env` is not tracked, and the API refuses to start when a required value is missing. The JWT secret in `docker-compose.yml` and `.env.example` is a local development default only.
+The API reads `ConnectionStrings__DefaultConnection` (or `DATABASE_URL`), `JWT_SECRET` and `CORS_ALLOWED_ORIGINS` from configuration: user secrets locally, environment variables when deployed. The frontend reads `VITE_API_URL`. Nothing secret is committed, `.env` is not tracked, and the API refuses to start when a required value is missing. The JWT secret in `docker-compose.yml` and `.env.example` is a local development default only.
 
 ## Testing
 
