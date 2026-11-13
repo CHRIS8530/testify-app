@@ -1772,6 +1772,49 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 55: Failed Sign Ins Are Throttled Per Email
+
+**Date:** November 13, 2026
+
+**Context:** CODE_REVIEW.md 2.7 and brief 3.5, which asks for rate limiting on the authentication endpoints. The only limit was one global rule of 100 requests a minute per IP address, which is weak against password guessing, and SECURITY.md listed lockout and stricter login limits as missing under A07. My plan was a stricter per IP limit plus forwarded headers. Looking at the deployment (Render's edge, then nginx, then Render's edge again) I could not verify which address the API would see. If forwarded headers are trusted wrongly anyone can fake an address and dodge the limit, and if they are not trusted every visitor shares nginx's address, so a strict limit would lock everyone out together.
+
+**What I asked the AI:** For a stricter limit on sign in that still works behind the proxies on Render, written test first.
+
+**What it gave me:**
+1. The change of approach: count failed sign ins per email, which does not depend on addresses and behaves the same locally, in CI and on Render.
+2. A brief with the rule (5 failures within 15 minutes, then 429 with the code `TOO_MANY_ATTEMPTS`, even with the right password, a successful sign in clears the count, unknown emails are counted too) and four tests, three of them expected to fail first.
+3. A `LoginThrottle` service with a sliding window, six unit tests with a fake clock, and the edits to `Program.cs` and `AuthController.cs`.
+
+**What I changed and why:**
+1. Committed the four tests first. CI showed `Failed: 3, Passed: 116, Skipped: 0, Total: 119`, as predicted. The failures were the right password after 5 failures (expected `TooManyRequests`, got `OK`), an unknown email (expected `TooManyRequests`, got `Unauthorized`) and the throttle only affecting the failing email (expected `TooManyRequests`, got `OK`). The fourth test, that a good sign in clears the count, passes before and after on purpose.
+2. The throttle is a singleton with in memory counts. The blocked check runs before the password check, so a correct guess cannot get through during an attack. Failures are recorded for unknown emails too, so the response does not reveal whether an account exists. The key ignores case and surrounding spaces.
+3. The unit tests (the window passing, failures outside the window not counting, reset, key normalising) were written together with the class, so I did not see them red. Their only red would have been a compile error.
+4. Registered `TimeProvider.System` and the throttle as singletons, so a test can move the clock.
+5. After the change the whole suite ran with no failures locally (the 3 PostgreSQL tests skip without Docker), and all four checks were green in CI.
+
+**What I did not understand at first:**
+- A per IP limit and a proxy do not mix. Every request reaches the API from the proxy's address, and trusting `X-Forwarded-For` without knowing exactly which proxies sit in front lets a caller write whatever address they like.
+- The throttle has to be a singleton. A controller is created for every request, so a throttle created with it would forget everything between requests.
+- Order matters. If the password is checked first, a correct guess during an attack still signs in. The test for that is the first one.
+- `TimeProvider` is the built in way to make time replaceable in a test, and a small class that overrides `GetUtcNow` is enough.
+- A throttle that blocks by email can be turned against a user: anyone who knows an email can block it by failing on purpose. That is the usual cost of this defence, not a bug.
+
+**Where the AI cost me time:**
+- Its plan for this item was a stricter per IP limit with forwarded headers, and it reversed that after looking at how the deployed stack is wired.
+- Its estimate of the red was right (3 failures of 4), which is why I trusted it, but I had to read the failure messages myself to see that all three failed for the right reason.
+
+**Result:** RESOLVED. Failed sign ins are throttled per email. Limits:
+- Anyone who knows an email can block it for up to 15 minutes.
+- The counts are in memory, so they reset when the API restarts and are not shared between instances. Render's free plan runs one instance, so that is acceptable here.
+- Once the table passes 10,000 emails, expired entries are swept when a failure is recorded. Memory is bounded in practice but not by a hard cap.
+- Failed sign ins are still not recorded in the audit log, and the global per IP limit is still weak behind a proxy because forwarded headers are not read.
+- Registration has no stricter limit.
+- I have not read OWASP's guidance on account lockout. That is still to do.
+
+**Source verification:** The CI log of the red run (three failed tests with their messages, `Failed: 3, Passed: 116, Total: 119`), the local `dotnet test` output and the green CI run. I have not yet read OWASP's Authentication Cheat Sheet on lockout and throttling.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: November 12, 2026
+Last updated: November 13, 2026
