@@ -84,7 +84,8 @@ Nothing environment-specific is baked into the code. Settings come from configur
 
 | Name | Used by | What it is |
 |---|---|---|
-| `ConnectionStrings__DefaultConnection` | API | The PostgreSQL connection string. The API stops at startup if it is missing. |
+| `ConnectionStrings__DefaultConnection` | API | The PostgreSQL connection string. The API stops at startup if neither this nor `DATABASE_URL` is set. |
+| `DATABASE_URL` | API | A `postgres://` URL, used when no connection string is set. This is how Render hands a service its database. |
 | `JWT_SECRET` | API | The key that signs access tokens. |
 | `CORS_ALLOWED_ORIGINS` | API | Comma separated list of web app addresses allowed to call the API, never `*`. Development gets `http://localhost:5173` from `api/appsettings.Development.json`. Every other environment must set it. |
 | `RATE_LIMIT_PER_MINUTE` | API | Requests allowed per minute per IP address. 100 when it is not set. The browser tests raise it, because they make many requests from one address. |
@@ -95,7 +96,7 @@ Nothing environment-specific is baked into the code. Settings come from configur
 
 The test levels, what each covers and what is not covered are in [docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md).
 
-**API tests** (81 tests, xUnit: 78 on the in-memory database and 3 on a real PostgreSQL in a container):
+**API tests** (115 tests, xUnit: 112 on the in-memory database and 3 on a real PostgreSQL in a container):
 
 ```bash
 dotnet test api.tests
@@ -163,12 +164,29 @@ The OpenAPI document is served at `/openapi/v1.json`, generated from the control
 
 ## Deployment
 
-**The app is not deployed.** What exists today:
+**The app is not live yet.** `render.yaml` describes the whole deployment on Render's free plan, and CI checks it against Render's own schema on every pull request. It has not been applied yet, so nothing in it has run on Render.
 
-- A PostgreSQL database on Render (`testify-db-2`). The API applies migrations to it when it starts.
-- A CI pipeline that tests and builds, but does not deploy.
+What the Blueprint creates, all in the Oregon region:
 
-Still to do: an infrastructure file (`render.yaml`), the API and web app running over HTTPS, and a documented backup strategy.
+| Resource | What | Notes |
+|---|---|---|
+| `testify-db` | PostgreSQL, free plan | `ipAllowList` is empty, which should make it reachable only from the services below (not yet checked on Render). Free databases expire 30 days after creation and hold 1 GB. |
+| `testify-api` | Docker web service built from `api/Dockerfile`, free plan | Gets `DATABASE_URL` from the database, a generated `JWT_SECRET` and `PORT=8080`. Health check: `/api/v1/health`. |
+| `testify-web` | Docker web service built from `frontend/Dockerfile`, free plan | nginx serves the site and proxies `/api` to the API, so the browser sees one origin and the refresh cookie is sent. |
+
+Both services deploy when a push to `main` passes its checks (`autoDeployTrigger: checksPass`).
+
+**How to deploy it** (steps in the Render dashboard):
+
+1. If an old free database still exists in the workspace, delete it first. As I understand it, a workspace can have one free PostgreSQL database at a time.
+2. In Render choose New, then Blueprint, connect this repository, select `render.yaml`, and apply it.
+3. Wait for `testify-api` to go live, open its address plus `/api/v1/health`, and check that it answers `{"status":"healthy", ...}`.
+4. Open the address of `testify-web` and sign in.
+5. If Render gave the services other addresses than `testify-api.onrender.com` and `testify-web.onrender.com`, set `API_UPSTREAM` on `testify-web` and `CORS_ALLOWED_ORIGINS` on `testify-api` to the real ones, and redeploy.
+
+**Free plan limits that affect the app:** a free web service goes to sleep after 15 minutes without traffic and takes about a minute to wake up (nginx waits up to 90 seconds for the API). The workspace gets 750 free instance hours a month shared by all free web services, so two services that never slept would not fit. The database is deleted 30 days after it is created.
+
+**Backup and persistence strategy:** the free database has no automated backups and its data does not survive the 30 days. The schema does: migrations rebuild it every time the API starts against a new empty database, so the fix for an expired database is to apply the Blueprint again. To keep real data you would upgrade the database to a paid plan (a cost I have not checked), or take a copy with `pg_dump` before it expires. That needs a temporary entry in the database's access list for your own address, because it allows no outside connections. None of this is automated or tested.
 
 ## Container images
 

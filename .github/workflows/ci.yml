@@ -190,6 +190,12 @@ jobs:
           body=$(curl -fsS http://localhost:3000/api/v1/health)
           echo "GET /api/v1/health through the web app answered: $body"
           echo "$body" | grep -q '"status":"healthy"'
+      - name: Check that render.yaml matches Render's schema
+        run: |
+          python3 -m venv /tmp/schema-venv
+          /tmp/schema-venv/bin/pip install --quiet pyyaml jsonschema
+          curl -fsS https://render.com/schema/render.yaml.json -o /tmp/render-schema.json
+          /tmp/schema-venv/bin/python -c "import json, yaml, jsonschema; jsonschema.validate(yaml.safe_load(open('render.yaml')), json.load(open('/tmp/render-schema.json'))); print('render.yaml is valid')"
       - name: Show the image sizes
         run: docker image ls --format "{{.Repository}} {{.Tag}} {{.Size}}"
 

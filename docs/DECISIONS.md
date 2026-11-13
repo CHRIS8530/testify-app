@@ -1687,6 +1687,91 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 53: The API Accepts A DATABASE_URL And Converts It For Npgsql
+
+**Date:** November 12, 2026
+
+**Context:** Deploying to Render. Render hands a service its database as a `postgres://` URL, and a Blueprint cannot join pieces of text together, so it cannot build the `Host=...;Username=...` string that Npgsql expects. Until now the API only read `ConnectionStrings:DefaultConnection`. `DATABASE_URL` had been set in the old compose file but no code ever read it (Decision 29). Reading it also means no database password is ever pasted or committed. I believed Npgsql does not accept a URL, but I have not run a test that shows it.
+
+**What I asked the AI:** How to let the Blueprint wire the database to the API without a pasted connection string, and to write it test first.
+
+**What it gave me:**
+1. A brief: the goal, the red I should expect (a compile error, because the class did not exist yet) and the files.
+2. Five tests for a new `DatabaseUrl.ToConnectionString`: host, port, database, user and password are read; port 5432 when the URL has none; the `postgresql://` scheme works; a percent-encoded password is decoded; anything that is not a postgres URL throws a `FormatException`.
+3. `api/Services/DatabaseUrl.cs` and a four line change in `Program.cs`: when `ConnectionStrings:DefaultConnection` is not set, `DATABASE_URL` is converted and used. The startup error now names both settings.
+
+**What I changed and why:**
+1. Committed the tests first. The `api` job failed at the test step with five errors, one per call site: `error CS0103: The name 'DatabaseUrl' does not exist in the current context` (lines 12, 25, 33, 41 and 52 of the test file). That is red for a missing class, not for a wrong answer, which I note because it proves less than a failing assertion does.
+2. Wrote the class and the fallback. The connection string wins when both are set, so user secrets and compose behave as before.
+3. Checked locally before committing: `dotnet format --verify-no-changes` printed nothing, the 7 new tests passed, and the whole suite showed `total: 115, failed: 0, succeeded: 112, skipped: 3`. The 3 skips are the PostgreSQL tests, which need Docker. The `Program.cs` diff was 4 insertions and 1 deletion, where I had been told 4 and 2, so I used the real output.
+4. After the push all four checks were green and I merged.
+5. Updated the README configuration table, SECURITY.md and the test counts in the same pull request as the Blueprint. The README and TEST_STRATEGY still said 81 tests, which had been out of date since Decision 46.
+
+**What I did not understand at first:**
+- A URL and a connection string describe the same thing in two shapes. Npgsql wants `Key=value;` pairs, and a URL puts the user, password, host, port and database in one address.
+- The user name and password in a URL are percent-encoded, so `p@ss` is written `p%40ss`. `Uri.UnescapeDataString` undoes that. Without it a password with a symbol would be wrong without any error.
+- `Uri.Port` is -1 when the URL has no port, so the code has to supply 5432 itself.
+- A compile error and a failing assertion are both red, but they prove different things. This red proves the tests exist and call the new class. The green runs are what show the conversion is right.
+
+**Where the AI cost me time:**
+- Its estimate of the `Program.cs` diff (4 insertions and 2 deletions) was off by one. The terminal output is the referee.
+- It expected the build to be quiet, but the test project prints a long `MSB3277` warning about two versions of `Microsoft.EntityFrameworkCore.Relational` (10.0.4 and 10.0.11). It is a warning, not an error, and it was there before this change.
+
+**Result:** RESOLVED. The API starts from a `DATABASE_URL` when no connection string is set, and 112 plus 3 tests pass. Limits:
+- Only the conversion is tested. No test connects to a PostgreSQL through a `DATABASE_URL`.
+- The converter sets no SSL mode. Render's internal connection and its external one may need different settings, and nothing has run on Render yet.
+- The `MSB3277` version conflict is still there and goes on the cleanup list.
+
+**Source verification:** The CI log of the red run (five CS0103 errors in the `api` job's test step), the local `dotnet test` output (7 of 7, then 112 passed and 3 skipped of 115), and the `git diff --stat` output. Render's Blueprint reference lists `connectionString` as a property a database can hand to a service. I have not yet confirmed the exact format of that string beyond that.
+
+---
+
+### Decision 54: render.yaml Describes The Deployment, Checked Against Render's Schema
+
+**Date:** November 12, 2026
+
+**Context:** CODE_REVIEW.md 4.3 and brief 3.4: infrastructure defined as code, with no setup that lives only in a dashboard. The only thing on Render was a free database, and that database expires 30 days after it is created. My earlier plan, written before I saw the expiry date, was to leave the database out of the Blueprint and paste its connection string. That was reversed once I saw that `testify-db-2` would be deleted on November 12.
+
+**What I asked the AI:** For an infrastructure file for Render that uses only free services, with the browser seeing one origin (Decision 52), written so that I could see a check fail first. I said I need free services only.
+
+**What it gave me:**
+1. A split of the work into two pull requests: `DATABASE_URL` support first (Decision 53), then the Blueprint.
+2. A CI step that downloads Render's JSON schema and validates `render.yaml` against it, committed before the file existed.
+3. `render.yaml` with one free database, two Docker web services, `PORT=8080` on both, and a README section with the deploy steps and the backup note.
+
+**What I changed and why:**
+1. Committed the schema check first. The `containers` job failed at that step with `FileNotFoundError: [Errno 2] No such file or directory: 'render.yaml'`, after the virtual environment, the package install and the schema download had all worked in 3 seconds. So the schema URL is reachable from the runner.
+2. Declared the database in the Blueprint and wired it with `fromDatabase`. A Blueprint can only wire a database it declares itself, so a hand-made database would have needed a pasted connection string.
+3. Set an empty `ipAllowList` so the database accepts no connections from outside Render.
+4. Used `autoDeployTrigger: checksPass` so a push to `main` deploys only after its checks have passed, which is the "deploy on merge" requirement without a separate pipeline.
+5. Passed `VITE_API_URL=/` as an ordinary environment variable. Render's Docker documentation says it injects a service's environment variables as build args, so the Dockerfile's `ARG` receives it, and the build fails with its own message if it does not.
+6. Wrote the two services' public addresses into the file as `testify-api.onrender.com` and `testify-web.onrender.com`, and put in the README what to change if Render picks other addresses.
+7. After the file was added all four checks were green, with the schema step passing.
+
+**What I did not understand at first:**
+- A Blueprint can only hand a service the connection details of a database it declares in the same file.
+- A web service on Render is told its port by the `PORT` variable and defaults to 10000. Ours listen on 8080, so the Blueprint has to say so.
+- A free web service sleeps after 15 minutes without traffic and takes about a minute to wake up. That is why nginx waits 90 seconds in Decision 52, and it is a real limit on how the app feels.
+- The 750 free hours a month are shared by all of a workspace's free web services. Two services that never slept would not fit, so the app depends on the sleeping.
+- A free database is deleted 30 days after it is created. The schema comes back through migrations, but the data does not, so "backup strategy" for a free app means knowing that and saying so.
+
+**Where the AI cost me time:**
+- It first advised against declaring the database, then reversed after the expiry notice. That cost a round.
+- It guessed 8 inserted lines for the schema check and the real number was 6.
+- Part of the Blueprint page I fetched was trimmed from my view before I could quote it, so I wrote the file from reading it and relied on the schema check to catch mistakes, not on my memory of the fields.
+
+**Result:** RESOLVED as a file that is valid against Render's schema. Nothing has been applied on Render yet. Limits:
+- I have not confirmed that an empty `ipAllowList` means no outside access, only that the schema accepts it.
+- I have not confirmed that the connection string `fromDatabase` supplies is the internal one, or that the converter accepts it.
+- The hard-coded `.onrender.com` addresses may differ from what Render assigns.
+- I believe a workspace can have only one free PostgreSQL database, so the old one has to be gone before applying.
+- Whether the build argument reaches the Dockerfile on Render is documented but not seen working.
+- The API still sees nginx's address instead of the visitor's (forwarded headers are still to do).
+
+**Source verification:** Render's Blueprint YAML reference (the fields and the JSON schema link), Render's page on using secrets with Docker (environment variables become build args), the CI log of the red run (the `FileNotFoundError` after a successful schema download) and the green run (`render.yaml is valid`).
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
 Last updated: November 12, 2026
