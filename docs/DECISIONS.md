@@ -1854,6 +1854,42 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 57: CORS Only Allows The Methods And Headers The App Uses
+
+**Date:** November 14, 2026
+
+**Context:** CODE_REVIEW.md 2.7 and brief 3.5. The CORS origin list was already explicit (never `*`, Decision 32), but `Program.cs` still called `AllowAnyMethod()` and `AllowAnyHeader()`, and SECURITY.md listed that as a gap under A05. The web app only uses five methods (GET, POST, PUT, PATCH, DELETE) and sends two headers (`Content-Type` and `Authorization`), so that is all the policy needs to allow.
+
+**What I asked the AI:** To narrow the policy without breaking the app, written test first.
+
+**What it gave me:**
+1. A brief with the rule (a preflight for any other method or header gets no `Access-Control-Allow-Origin` header) and eight tests: the five methods and the header set the app uses, expected to pass before and after on purpose, and a `TRACE` preflight and an unexpected header, expected to fail first.
+2. A two line change in `Program.cs`: `WithMethods(...)` and `WithHeaders(...)` instead of the two `AllowAny` calls.
+
+**What I changed and why:**
+1. Committed the tests first. CI showed `Failed: 2, Passed: 135, Skipped: 0, Total: 137`, as predicted. Both failures were `Expected: False, Actual: True` (lines 51 and 59 of the test file): the old policy answered a `TRACE` preflight and an `x-custom-header` preflight with an allow origin header. The six tests for what the app uses already passed.
+2. Replaced the two calls. `AllowCredentials()` and the origin list are unchanged, because the refresh cookie needs credentials.
+3. Locally `dotnet format` printed nothing, the eight new tests passed with the two older CORS tests, and the whole suite ran with `failed: 0`. The `e2e` job is the real check for the headers: it drives a real browser from the web app's origin to the API on another origin, so a header I forgot would have blocked a request there. All four checks were green.
+
+**What I did not understand at first:**
+- A preflight is an `OPTIONS` request with `Access-Control-Request-Method` and `Access-Control-Request-Headers`. The server's answer is the presence or absence of `Access-Control-Allow-Origin`. The browser then decides whether to send the real request.
+- A JSON body (`Content-Type: application/json`) and an `Authorization` header both make a request "not simple", which is why every call from the web app is preflighted. Any header the app sends must be in the list, or the browser blocks the call.
+- CORS is enforced by the browser, not the server. A script or `curl` ignores it, so this narrows what a web page can do and is not an access control.
+- `Expected: False, Actual: True` on the red run showed that the old policy really was open, not just untidy.
+
+**Where the AI cost me time:**
+- I told you Decision 56 was missing from the log after the previous merge. It was already on `main` from the same pull request. I had not read the diff in your `git pull` output.
+
+**Result:** RESOLVED. Limits:
+- A future header (for example a request id) needs a policy change, or the browser blocks it.
+- `AllowedHosts` is still `*`.
+- Behind the nginx proxy the browser calls the API on its own origin, so CORS is not used there. This change matters for local development on port 5173 and for anyone running the web app elsewhere.
+- I have not read Microsoft's documentation on CORS in ASP.NET Core. That is still to do.
+
+**Source verification:** The CI log of the red run (two failures at lines 51 and 59, `Failed: 2, Passed: 135, Total: 137`), the local `dotnet test` output, and the green CI run including `e2e`. I have not yet read Microsoft Learn's page on enabling CORS.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: November 13, 2026
+Last updated: November 14, 2026
