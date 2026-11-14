@@ -10,7 +10,7 @@ This describes the code as it is today: what it protects, how, and what it does 
 | A02 Cryptographic Failures | Partly | Passwords use bcrypt (cost 10). Refresh and password reset tokens are random 256 bit values stored as SHA-256 hashes. HTTPS redirection and HSTS are on. Missing: key rotation and a secrets manager. |
 | A03 Injection | Addressed | Entity Framework Core parameterises every query and no user input is concatenated into SQL. React escapes rendered values. |
 | A04 Insecure Design | Partly | Access tokens last 15 minutes, refresh tokens rotate, roles follow least privilege. Missing: a formal threat model, detection of a stolen refresh token being reused, account lockout. |
-| A05 Security Misconfiguration | Partly | Security headers are set, CORS only allows the configured origins (never `*`), and the API refuses to start without its secrets. Missing: CORS still allows any method and header, and `AllowedHosts` is `*`. |
+| A05 Security Misconfiguration | Partly | Security headers are set, CORS only allows the configured origins (never `*`), five methods and two headers, and the API refuses to start without its secrets. Missing: `AllowedHosts` is `*`. |
 | A06 Vulnerable Components | Partly | The `Microsoft.OpenApi` advisory (GHSA-v5pm-xwqc-g5wc) is fixed by upgrading to 2.7.5. `npm audit` reports 3 frontend vulnerabilities and Dependabot is not configured, so those are not triaged yet. |
 | A07 Authentication Failures | Partly | Password rules, short lived JWT access tokens, an httpOnly, Secure, SameSite Strict refresh cookie limited to `/api/v1/auth`, and single use reset tokens that expire after 1 hour. Covered by `TokenSecurityTests`. Failed sign ins are throttled per email (5 within 15 minutes, then 429). Missing: multi factor authentication, and a block that survives an API restart. |
 | A08 Software and Data Integrity | Partly | Changes reach main through pull requests with required checks, the frontend installs from the lockfile (`npm ci`), and the schema changes through migrations. Missing: signed commits and artifact signing. |
@@ -40,7 +40,7 @@ This describes the code as it is today: what it protects, how, and what it does 
 
 ## CORS
 
-Allowed origins come from `CORS_ALLOWED_ORIGINS` (comma separated). The API stops at startup if it is missing or contains `*`. Credentials are allowed, because the refresh cookie needs them. Any method and any header are currently allowed, which should be narrowed. Behind the nginx proxy the browser calls the API on its own origin, so CORS is not used there. It still applies when the web app runs on another address, such as local development on port 5173.
+Allowed origins come from `CORS_ALLOWED_ORIGINS` (comma separated). The API stops at startup if it is missing or contains `*`. Credentials are allowed, because the refresh cookie needs them. Only GET, POST, PUT, PATCH and DELETE and the Content-Type and Authorization headers are allowed. CORS is enforced by browsers, so this narrows what a web page can do and does not stop other kinds of client. Behind the nginx proxy the browser calls the API on its own origin, so CORS is not used there. It still applies when the web app runs on another address, such as local development on port 5173.
 
 ## Rate limiting
 
