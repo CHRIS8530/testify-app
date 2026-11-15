@@ -1,5 +1,5 @@
 # Stage 1: build. The build context is the repo root, so every path below starts with api/.
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS builder
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS builder
 WORKDIR /src
 
 # Restore first, so this step is cached until the project file changes.
