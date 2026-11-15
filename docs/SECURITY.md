@@ -11,7 +11,7 @@ This describes the code as it is today: what it protects, how, and what it does 
 | A03 Injection | Addressed | Entity Framework Core parameterises every query and no user input is concatenated into SQL. React escapes rendered values. |
 | A04 Insecure Design | Partly | Access tokens last 15 minutes, refresh tokens rotate, roles follow least privilege. Missing: a formal threat model, detection of a stolen refresh token being reused, account lockout. |
 | A05 Security Misconfiguration | Partly | Security headers are set, CORS only allows the configured origins (never `*`), five methods and two headers, and the API refuses to start without its secrets. Missing: `AllowedHosts` is `*`. |
-| A06 Vulnerable Components | Partly | The `Microsoft.OpenApi` advisory (GHSA-v5pm-xwqc-g5wc) is fixed by upgrading to 2.7.5. `npm audit` reports 3 frontend vulnerabilities and Dependabot is not configured, so those are not triaged yet. |
+| A06 Vulnerable Components | Partly | The `Microsoft.OpenApi` advisory (GHSA-v5pm-xwqc-g5wc) is fixed by upgrading to 2.7.5, and `dotnet list package --vulnerable` finds nothing. CI fails on high severity `npm audit` findings, and Dependabot proposes updates weekly. One moderate finding remains (react-router, see Known limitations). |
 | A07 Authentication Failures | Partly | Password rules, short lived JWT access tokens, an httpOnly, Secure, SameSite Strict refresh cookie limited to `/api/v1/auth`, and single use reset tokens that expire after 1 hour. Covered by `TokenSecurityTests`. Failed sign ins are throttled per email (5 within 15 minutes, then 429). Missing: multi factor authentication, and a block that survives an API restart. |
 | A08 Software and Data Integrity | Partly | Changes reach main through pull requests with required checks, the frontend installs from the lockfile (`npm ci`), and the schema changes through migrations. Missing: signed commits and artifact signing. |
 | A09 Logging and Monitoring | Partly | Writes and sign in events go to an audit log (who, what, which project, IP address, when). Missing: failed sign ins are not recorded, there is no central logging or alerting, and the IP address is the proxy's when deployed behind one. |
@@ -67,7 +67,7 @@ The API tests (xUnit, in-memory database) cover authorization, the audit log, to
 
 ## Known limitations
 
-- `npm audit` findings are not triaged and Dependabot is not configured.
+- `npm audit` reports one moderate finding in react-router 6 (an open redirect in `<Link>` and `useNavigate`, and an SSR hydration issue). The SSR issue does not apply because the app is client side only. Every link target we build starts with a fixed `/projects` path, so I do not believe the open redirect applies, but I have not tested it. The fix is a breaking major upgrade to react-router 7, which Dependabot will propose so CI and the browser tests can check it.
 - The OpenAPI document at `/openapi/v1.json` is served without signing in, in every environment, so anyone can read the list of endpoints.
 - A refresh token that is reused after rotation is rejected, but this does not end the user's other sessions.
 - SameSite Strict needs the frontend and the API to share a site. In the container stack nginx proxies `/api`, so the browser sees one origin and the refresh cookie is sent. If the API were called directly from another site, the cookie would not be sent.

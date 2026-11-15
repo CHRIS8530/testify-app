@@ -213,7 +213,7 @@ Compare sizes within one run, not across runs. The same postgres tag showed 292 
 - Inviting a member has no screen, the emailed link goes nowhere, and emails are mocked and written to the server log. There is no endpoint to list a project's members.
 - A defect's title, description and severity cannot be edited after it is raised, and nothing sets its resolved date.
 - Lint reports about ten warnings (React hook dependencies). They are warnings, not errors.
-- Findings from `npm audit` are not triaged, and Dependabot is not configured.
+- `npm audit` has one moderate finding left (react-router 6), triaged in [docs/SECURITY.md](docs/SECURITY.md). CI fails on high findings, and Dependabot proposes updates weekly.
 - More security limitations are listed in [docs/SECURITY.md](docs/SECURITY.md).
 
 ## Documentation

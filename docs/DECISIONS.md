@@ -1869,7 +1869,7 @@ The password stopped working on 7 October, so the leftover string in git history
 **What I changed and why:**
 1. Committed the tests first. CI showed `Failed: 2, Passed: 135, Skipped: 0, Total: 137`, as predicted, both `Expected: False, Actual: True` (lines 51 and 59 of the test file).
 2. Made the two line change. The same two tests still failed locally (`total: 10, failed: 2, succeeded: 8`) and in CI on that commit. So the change was fine and my tests were asserting the wrong thing: the middleware sends `Access-Control-Allow-Origin` for an allowed origin whatever the method or headers are. What changes is `Access-Control-Allow-Methods` and `Access-Control-Allow-Headers`, which the browser then checks.
-3. Rewrote the tests to check those two headers, with the response headers in each failure message. I ran them locally against the old policy first (`git checkout main -- api/Program.cs`): the `TRACE` and `x-custom-header` tests failed and the other eight passed. Then with the narrowed policy all ten passed. All four checks were green in CI.
+3. Rewrote the tests to check those two headers, with the response headers in each failure message. I ran them locally against the old policy first (`git checkout main -- api/Program.cs`): the `TRACE` and `x-custom-header` tests failed and the other six passed (`Failed: 2, Passed: 6, Total: 8`). The failure messages showed the old policy echoing the request back: `Access-Control-Allow-Methods=TRACE` and `Access-Control-Allow-Headers=x-custom-header`. So `AllowAnyMethod` and `AllowAnyHeader` agree to whatever is asked for. Then with the narrowed policy all eight passed (`Passed: 8, Total: 8`). All four checks were green in CI.
 4. `AllowCredentials()` and the origin list are unchanged, because the refresh cookie needs credentials.
 
 **What I did not understand at first:**
@@ -1880,6 +1880,7 @@ The password stopped working on 7 October, so the leftover string in git history
 
 **Where the AI cost me time:**
 - The brief stated a belief about the CORS middleware as the rule for the tests. It was wrong, and it cost two extra rounds.
+- The expected totals in the brief (10) counted two older tests that the new test filter does not match. The real totals were 8.
 - I pushed the docs commits before the tests were green, so the first draft of this entry claimed results that had not happened. This entry replaces it.
 - I also told you Decision 56 was missing from the log after its merge. It was already there. I had not read the diff in the `git pull` output.
 
@@ -1893,6 +1894,47 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 58: CI Fails On High Severity Audit Findings, And Dependabot Is Configured
+
+**Date:** November 15, 2026
+
+**Context:** CODE_REVIEW.md 2.7 and brief 3.5: dependency scanning with findings triaged, not ignored. SECURITY.md claimed Dependabot was enabled, but there was no `.github/dependabot.yml` (review 2.7), and `npm audit` reported findings that nobody had triaged. SECURITY.md said 3 frontend vulnerabilities, and the real number was 4.
+
+**What I asked the AI:** To triage the `npm audit` output, fix what can be fixed without a breaking change, and make CI fail on what matters, with a failing check first.
+
+**What it gave me:**
+1. A triage of the four findings: `vite` and `source-map-js` (high, dev tooling) fixable without a breaking change, and `react-router` and `react-router-dom` (moderate) fixable only with a breaking major upgrade.
+2. `dotnet list package --vulnerable --include-transitive`, which found no vulnerable NuGet packages. That confirms the fix from Decision 48.
+3. An audit step for the `frontend` job (`npm audit --audit-level=high`), written before the fix.
+4. A Dependabot configuration for npm, NuGet, GitHub Actions and the two Dockerfiles, with a limit of two open pull requests per ecosystem.
+
+**What I changed and why:**
+1. Committed the audit step first. The `frontend` job failed at it with `4 vulnerabilities (2 moderate, 2 high)` and exit code 1, naming `source-map-js` and `vite` as high. The CI change was 2 insertions, where I had been told 3.
+2. Ran `npm audit fix` in `frontend`, which changed only `package-lock.json`. Then `npm ci`, `npx tsc -b`, `npm run lint`, `npm run build` and `npm audit --audit-level=high` all passed locally, and the audit exited with 0. All four CI checks were green, including the web image build and the browser tests, which both use the new lockfile.
+3. Did not force the `react-router` upgrade. It is a breaking major version, and Decision 19 recorded problems with react-router 7 when I tried it. Dependabot will propose it, so CI and the browser tests can check it.
+4. I decided the `react-router` finding does not apply from the advisory titles and from the code, not from a test: the SSR hydration issue needs server rendering, which this app does not use, and every link target we build starts with a fixed `/projects` path.
+
+**What I did not understand at first:**
+- `npm audit` exits with a failure code when a finding at or above the chosen level exists, which is what makes it usable in CI. `--audit-level=high` ignores moderate and low findings.
+- `npm audit fix` stays inside the version ranges in `package.json`, so it only edits the lockfile when the fixed version fits the range. `--force` is the flag that crosses a major version.
+- A lockfile change reaches the Docker build as well, because the frontend image runs `npm ci`. That is why the `containers` check matters for a lockfile-only change.
+- Dependabot configuration is only checked by GitHub after it is on the default branch, so a mistake in it cannot show in a pull request check.
+- The vulnerable versions of `vite` and `source-map-js` are in dev tooling. The deployed site is static files from `npm run build`, so those two do not run in production.
+
+**Where the AI cost me time:**
+- SECURITY.md and the README had both said Dependabot was configured and the findings were low risk, with no config file and no triage behind it. It is the same habit as review section 5.
+- The expected size of the CI change was off by one (3 against 2).
+
+**Result:** RESOLVED for the high findings. Limits:
+- One moderate finding remains: react-router 6. I have read only the advisory titles, not the advisories, and I have not tested the open redirect.
+- The Dependabot file has not been validated by GitHub yet.
+- `npm audit` only sees what the advisory database knows at the time it runs, so a new advisory can turn the check red on an unchanged commit.
+- The NuGet check is a one-off command, not a CI step.
+
+**Source verification:** The CI log of the red run (`4 vulnerabilities (2 moderate, 2 high)`, exit code 1), the local `npm audit`, `dotnet list package --vulnerable` output and the green CI run. I have not yet read the full text of the react-router advisories or GitHub's documentation on `dependabot.yml`.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: November 14, 2026
+Last updated: November 15, 2026
