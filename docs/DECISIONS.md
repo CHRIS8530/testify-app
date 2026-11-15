@@ -1869,7 +1869,7 @@ The password stopped working on 7 October, so the leftover string in git history
 **What I changed and why:**
 1. Committed the tests first. CI showed `Failed: 2, Passed: 135, Skipped: 0, Total: 137`, as predicted, both `Expected: False, Actual: True` (lines 51 and 59 of the test file).
 2. Made the two line change. The same two tests still failed locally (`total: 10, failed: 2, succeeded: 8`) and in CI on that commit. So the change was fine and my tests were asserting the wrong thing: the middleware sends `Access-Control-Allow-Origin` for an allowed origin whatever the method or headers are. What changes is `Access-Control-Allow-Methods` and `Access-Control-Allow-Headers`, which the browser then checks.
-3. Rewrote the tests to check those two headers, with the response headers in each failure message. I ran them locally against the old policy first (`git checkout main -- api/Program.cs`): the `TRACE` and `x-custom-header` tests failed and the other eight passed. Then with the narrowed policy all ten passed. All four checks were green in CI.
+3. Rewrote the tests to check those two headers, with the response headers in each failure message. I ran them locally against the old policy first (`git checkout main -- api/Program.cs`): the `TRACE` and `x-custom-header` tests failed and the other six passed (`Failed: 2, Passed: 6, Total: 8`). The failure messages showed the old policy echoing the request back: `Access-Control-Allow-Methods=TRACE` and `Access-Control-Allow-Headers=x-custom-header`. So `AllowAnyMethod` and `AllowAnyHeader` agree to whatever is asked for. Then with the narrowed policy all eight passed (`Passed: 8, Total: 8`). All four checks were green in CI.
 4. `AllowCredentials()` and the origin list are unchanged, because the refresh cookie needs credentials.
 
 **What I did not understand at first:**
@@ -1880,6 +1880,7 @@ The password stopped working on 7 October, so the leftover string in git history
 
 **Where the AI cost me time:**
 - The brief stated a belief about the CORS middleware as the rule for the tests. It was wrong, and it cost two extra rounds.
+- The expected totals in the brief (10) counted two older tests that the new test filter does not match. The real totals were 8.
 - I pushed the docs commits before the tests were green, so the first draft of this entry claimed results that had not happened. This entry replaces it.
 - I also told you Decision 56 was missing from the log after its merge. It was already there. I had not read the diff in the `git pull` output.
 
