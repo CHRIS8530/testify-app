@@ -1,5 +1,5 @@
 # Stage 1: build the static site. Node and the source only exist in this stage.
-FROM node:22-alpine AS builder
+FROM node:26-alpine AS builder
 WORKDIR /app
 
 # Install first, so this step is cached until the lockfile changes. npm ci installs exactly what the lockfile pins.
