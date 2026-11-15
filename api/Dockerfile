@@ -10,7 +10,7 @@ COPY api/ api/
 RUN dotnet publish api/Testify.Api.csproj -c Release -o /out --no-restore
 
 # Stage 2: runtime only. No SDK and no source code in the final image.
-FROM mcr.microsoft.com/dotnet/aspnet:10.0
+FROM mcr.microsoft.com/dotnet/aspnet:11.0
 WORKDIR /app
 RUN useradd -m appuser
 COPY --from=builder --chown=appuser:appuser /out .
