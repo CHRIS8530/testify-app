@@ -1935,6 +1935,44 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 59: nginx Sends Security Headers For The Web App
+
+**Date:** November 15, 2026
+
+**Context:** Brief 3.5 asks for security headers (CSP, HSTS, X-Content-Type-Options, X-Frame-Options). The API sets them (Decision 29 onwards), but the static site served by nginx sent none, which Decision 50 recorded as a limit. A browser loads the site from nginx, so that is where headers such as `X-Frame-Options` and a CSP matter most.
+
+**What I asked the AI:** For the headers the site should send, with a CSP that fits this React app, written so that I could see a check fail first.
+
+**What it gave me:**
+1. A brief: the five headers, kept in `location /` only because the API already sets its own, and a CSP of `default-src 'self'` with `script-src 'self'`, `style-src 'self' 'unsafe-inline'`, `img-src 'self' data:`, `connect-src 'self'`, `frame-ancestors 'none'`, `base-uri 'self'` and `form-action 'self'`.
+2. A CI step in the `containers` job that fetches `/` from the web container and checks that each header is present.
+3. The change to `frontend/nginx.conf.template`.
+
+**What I changed and why:**
+1. Committed the check first (10 insertions). In CI the response showed only nginx's defaults (`Server: nginx/1.30.6`, `Content-Type`, `ETag` and so on) and the step failed with `Missing header: x-content-type-options: nosniff`.
+2. Added the five `add_header` lines to `location /` with `always`, so error responses carry them too. They stay out of `location /api/`, because an `add_header` inside a location replaces any set above it, and the API sends its own headers.
+3. Kept `unsafe-inline` for styles only. The React code uses inline `style` attributes in many components, so a stricter style policy would break the page. Scripts stay `'self'`: the built `index.html` has one module script from `/assets/` and no inline script.
+4. `connect-src 'self'` is enough because the browser calls the API on the page's own origin through the nginx proxy (Decision 52).
+5. Updated SECURITY.md, the README and the test strategy in the same push, so the docs are on the branch before the merge. All four checks were green.
+
+**What I did not understand at first:**
+- `add_header` in a location replaces headers inherited from the server level, so putting some at the server level and some in a location would have lost the first ones.
+- An internal redirect from `try_files` to `/index.html` enters `location /` again, so the fallback page gets the headers as well. That is why a direct visit to a client side route is covered.
+- A CSP is an allowlist the browser enforces. `curl` can show that the header is present, but only a browser can show that the page still works under it.
+- `Strict-Transport-Security` is ignored over plain http, so CI can see the header but it only has an effect once the site is served over HTTPS.
+
+**Where the AI cost me time:** Nothing significant. The red matched the prediction.
+
+**Result:** RESOLVED for the headers being present. Limits:
+- No test loads the page in a browser against the container stack, so a CSP mistake would only show in a real browser's console. I need to check the console for CSP errors once the app is live on Render.
+- `style-src` allows `'unsafe-inline'`, which weakens the CSP for styles.
+- HSTS has no `preload` and has not been verified over HTTPS.
+- I have not read nginx's documentation on `add_header` or MDN's documentation on CSP. That is still to do.
+
+**Source verification:** The CI log of the red run (the response headers and `Missing header: x-content-type-options: nosniff`), the `Vite` build output that shows one module script and no inline script, and the green CI run.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
 Last updated: November 15, 2026
