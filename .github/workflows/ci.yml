@@ -198,6 +198,16 @@ jobs:
           /tmp/schema-venv/bin/pip install --quiet pyyaml jsonschema
           curl -fsS https://render.com/schema/render.yaml.json -o /tmp/render-schema.json
           /tmp/schema-venv/bin/python -c "import json, yaml, jsonschema; jsonschema.validate(yaml.safe_load(open('render.yaml')), json.load(open('/tmp/render-schema.json'))); print('render.yaml is valid')"
+      - name: Check that the web app sets security headers
+        run: |
+          headers=$(curl -fsSI http://localhost:3000/)
+          echo "$headers"
+          for h in "x-content-type-options: nosniff" "x-frame-options: DENY" "referrer-policy: strict-origin-when-cross-origin" "strict-transport-security: max-age=31536000" "content-security-policy: default-src 'self'"; do
+            if ! echo "$headers" | grep -iq "$h"; then
+              echo "Missing header: $h"
+              exit 1
+            fi
+          done
       - name: Show the image sizes
         run: docker image ls --format "{{.Repository}} {{.Tag}} {{.Size}}"
 
