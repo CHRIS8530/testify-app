@@ -2016,6 +2016,46 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 61: A New Advisory Turned The Audit Red On Every Pull Request, So The Gate Covers What Ships
+
+**Date:** November 18, 2026
+
+**Context:** Dependabot opened eleven pull requests on November 15 (Decision 58). I tried to merge six of them (#85 setup-node, #82 upload-artifact, #87 oxlint, #89 coverlet, #91 Mvc.Testing, #90 EF Core InMemory). Every one failed at the `Audit dependencies` step of the `frontend` job with `7 vulnerabilities (2 moderate, 5 high)`. Five of them did not touch the frontend's dependencies at all. The cause was a new high severity advisory for `picomatch` (ReDoS through repeated extglobs, GHSA-fc5q-39xc-vjpf), reaching the project through `fdir`, `tinyglobby`, `vite` and `@vitejs/plugin-react`. `main` itself would fail the same check, so the gate blocked all work. Decision 58 had listed this as a limit: a new advisory can turn the check red on an unchanged commit.
+
+**What I asked the AI:** How to read six identical failures on unrelated branches, whether the finding is real, and what to do.
+
+**What it gave me:**
+1. A reading of the output: the same seven findings on every branch means the cause is in `main`, not in the pull requests. The only fix npm offered was `npm audit fix --force`, which would install `vite@6.2.7`, a breaking downgrade, and the advisory range is `*`, which suggests no patched version exists.
+2. A chain of reasoning: `picomatch` is only used by the build tools. The deployed site is static files built from React, `react-dom` and `react-router-dom`, so the vulnerable package does not ship.
+3. A plan: make the blocking audit cover only the production dependencies, and keep a report-only step for the whole tree so the build tool findings stay visible.
+
+**What I changed and why:**
+1. Kept the six red runs as the evidence of the failure, instead of writing a new failing check: the same output on six branches is a stronger red than a made up one.
+2. Checked locally before changing the gate. `npm ls picomatch --omit=dev` printed `(empty)`, and `npm audit --omit=dev --audit-level=high` exited with 0 and listed only the known moderate react-router finding. Those two outputs are the evidence that `picomatch` is not in anything that ships. I would have stopped if either had said otherwise.
+3. Replaced the one audit step with two. `Audit production dependencies` runs `npm audit --omit=dev --audit-level=high` and blocks the merge. `Report all dependency findings (does not block)` runs the full audit with `continue-on-error: true`, so its output stays in every run's log without failing the job.
+4. Recorded `picomatch` in SECURITY.md as a triaged limit, and updated the README wording.
+5. All four checks were green on the pull request.
+
+**What I did not understand at first:**
+- `npm audit` has no ignore list. The only choice is what it covers, so the design question is which dependencies the gate is about.
+- `--omit=dev` audits only the dependencies that end up in the deployed app. A vulnerability in a build tool is a risk to the developer machine and to CI, not to users.
+- A gate that blocks on something that does not reach users stops all work for no gain. The opposite mistake is a report that nobody reads. The report step is named so that it says it does not block, and Decision 30 is the reminder of what a gate that cannot fail looks like. This one is a gate for production dependencies and a report for the rest, and the names say which is which.
+- A security gate can go red with no change to the code. I had listed that as a limit in Decision 58 without deciding what to do about it.
+
+**Where the AI cost me time:**
+- The Dependabot triage came three days after the pull requests opened, because I put it after the nginx and dead code work. By then the audit had turned red on all of them.
+- My plan called most of them "merge if green" and said a green run would prove each change. I did not allow for the audit gate failing on all of them for a reason unrelated to the change, so each one was blocked until now.
+
+**Result:** RESOLVED for the gate. The six Dependabot pull requests are rebased and merged separately after this one. Limits:
+- `picomatch` has no patched version yet. I have read only the advisory title, so I do not know the exact conditions for the ReDoS, and I have not tested that the build tools never pass it a hostile pattern.
+- The report step can be ignored by anyone. It is only as good as someone reading it.
+- The production audit does not cover the build tools. A serious advisory in a tool that signs or publishes the build would need a different decision.
+- I have not read npm's documentation on `npm audit --omit`. That is still to do.
+
+**Source verification:** The six CI logs of the failed `Audit dependencies` steps (all showing `7 vulnerabilities (2 moderate, 5 high)` and the same `picomatch` chain), the local `npm ls picomatch --omit=dev` and `npm audit --omit=dev` output, and the green CI run on this pull request.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: November 16, 2026
+Last updated: November 18, 2026
