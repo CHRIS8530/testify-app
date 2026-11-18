@@ -1935,6 +1935,87 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 59: nginx Sends Security Headers For The Web App
+
+**Date:** November 15, 2026
+
+**Context:** Brief 3.5 asks for security headers (CSP, HSTS, X-Content-Type-Options, X-Frame-Options). The API sets them (Decision 29 onwards), but the static site served by nginx sent none, which Decision 50 recorded as a limit. A browser loads the site from nginx, so that is where headers such as `X-Frame-Options` and a CSP matter most.
+
+**What I asked the AI:** For the headers the site should send, with a CSP that fits this React app, written so that I could see a check fail first.
+
+**What it gave me:**
+1. A brief: the five headers, kept in `location /` only because the API already sets its own, and a CSP of `default-src 'self'` with `script-src 'self'`, `style-src 'self' 'unsafe-inline'`, `img-src 'self' data:`, `connect-src 'self'`, `frame-ancestors 'none'`, `base-uri 'self'` and `form-action 'self'`.
+2. A CI step in the `containers` job that fetches `/` from the web container and checks that each header is present.
+3. The change to `frontend/nginx.conf.template`.
+
+**What I changed and why:**
+1. Committed the check first (10 insertions). In CI the response showed only nginx's defaults (`Server: nginx/1.30.6`, `Content-Type`, `ETag` and so on) and the step failed with `Missing header: x-content-type-options: nosniff`.
+2. Added the five `add_header` lines to `location /` with `always`, so error responses carry them too. They stay out of `location /api/`, because an `add_header` inside a location replaces any set above it, and the API sends its own headers.
+3. Kept `unsafe-inline` for styles only. The React code uses inline `style` attributes in many components, so a stricter style policy would break the page. Scripts stay `'self'`: the built `index.html` has one module script from `/assets/` and no inline script.
+4. `connect-src 'self'` is enough because the browser calls the API on the page's own origin through the nginx proxy (Decision 52).
+5. Updated SECURITY.md, the README and the test strategy in the same push, so the docs are on the branch before the merge. All four checks were green.
+
+**What I did not understand at first:**
+- `add_header` in a location replaces headers inherited from the server level, so putting some at the server level and some in a location would have lost the first ones.
+- An internal redirect from `try_files` to `/index.html` enters `location /` again, so the fallback page gets the headers as well. That is why a direct visit to a client side route is covered.
+- A CSP is an allowlist the browser enforces. `curl` can show that the header is present, but only a browser can show that the page still works under it.
+- `Strict-Transport-Security` is ignored over plain http, so CI can see the header but it only has an effect once the site is served over HTTPS.
+
+**Where the AI cost me time:** Nothing significant. The red matched the prediction.
+
+**Result:** RESOLVED for the headers being present. Limits:
+- No test loads the page in a browser against the container stack, so a CSP mistake would only show in a real browser's console. I need to check the console for CSP errors once the app is live on Render.
+- `style-src` allows `'unsafe-inline'`, which weakens the CSP for styles.
+- HSTS has no `preload` and has not been verified over HTTPS.
+- I have not read nginx's documentation on `add_header` or MDN's documentation on CSP. That is still to do.
+
+**Source verification:** The CI log of the red run (the response headers and `Missing header: x-content-type-options: nosniff`), the `Vite` build output that shows one module script and no inline script, and the green CI run.
+
+---
+
+### Decision 60: A Defect Gets A Resolved Date, And The Dead Invitation Code Is Removed
+
+**Date:** November 16, 2026
+
+**Context:** CODE_REVIEW.md 3.11. `ProjectMembersController.InviteMember` generated an invite token, emailed it, and never stored it, so nothing could ever validate it. The email linked to `/accept-invite`, a page that does not exist, and the brief lists email notifications as out of scope. Separately, the `Defect` table has a `ResolvedAt` column that nothing ever set.
+
+**What I asked the AI:** To check each item in 3.11 against the brief, say what to cut, what to fix and what to leave, and to write the fix for the resolved date test first.
+
+**What it gave me:**
+1. A verdict per item: remove the invite token and the invitation email, fix `ResolvedAt`, and leave (but document) the members list endpoint, editing a defect's title, description and severity, and the hardcoded address in the reset email.
+2. Four tests for the resolved date, with the rule: moving a defect to Resolved or Closed sets the date if it is not set, and moving it back to Open or In Progress clears it. This is the pattern `TestRunsController` already uses for `CompletedAt`. In Progress having no date was expected to pass before and after on purpose.
+3. A two line change in `UpdateDefect`, and the removal of `SendInvitationEmailAsync` from the interface, the mock and the test double.
+
+**What I changed and why:**
+1. Committed the tests first. CI showed `Failed: 3, Passed: 138, Skipped: 0, Total: 141`, as predicted. `Resolved_SetsResolvedAt` and `Closed_SetsResolvedAt` failed with `Expected: Not Null, Actual: Null` (lines 55 and 65). `Reopening_ClearsResolvedAt` failed at line 73, which is its precondition (the date after Resolved), so the "reopening clears it" half could not be seen red until the setting half existed. `Test-Path api.tests\UnitTest1.cs` printed `False`: the empty test the review mentioned was already gone.
+2. Set `ResolvedAt` in `UpdateDefect` (2 insertions, where I had been told 3). The four tests passed locally.
+3. Removed the invite token, the email call and the `IEmailService` field from `ProjectMembersController`, the invitation method from the interface and the mock (20 lines), and from `CapturingEmailService`. The commit was 3 files, 1 insertion and 35 deletions. `dotnet format` printed nothing, and the whole suite ran `Failed: 0, Passed: 138, Skipped: 3, Total: 141`. The invite tests in `AuthorizationTests` and `AuditLogAccessTests` still pass, which proves inviting works without the email. All four checks were green in CI.
+4. Left alone, and documented as limits: the members list endpoint (not in the brief, and no screen invites anyone), editing a defect's title, description and severity (the brief only needs status changes), and the reset email's address of `localhost:5173`, because there is no reset page in the frontend and the email is mocked.
+5. The docs for this change were written before the nginx security headers pull request had merged, so the Decision 60 entry waited for it. Appending to the same place in the log from two branches would have conflicted.
+
+**What I did not understand at first:**
+- Removing a method from an interface breaks every class that implements it, including the test double in the test project. The compiler lists them, but only a build shows them.
+- `req.Status is "Resolved" or "Closed"` is a C# pattern that checks a value against several constants without repeating the variable. `defect.ResolvedAt ?? DateTime.UtcNow` keeps an existing date and only fills an empty one, so resolving twice does not move the date.
+- The invite flow added the member first and sent the email after, so the token was decorative: nothing depended on it. That is why it could go without changing behaviour.
+- A test that checks two steps (resolve, then reopen) fails at the first step while that step is missing, so a red run cannot show the second step. The green run is what covers it.
+- A script that edits several files and then checks a precondition has already changed the earlier files when the check fails. The guard has to come first, or the edits have to be undoable.
+- A pull request opened as a draft has no merge button until it is marked ready for review. I could not find where to merge the nginx pull request because it was still a draft.
+
+**Where the AI cost me time:**
+- The expected size of the `DefectsController` change was off by one (3 insertions against 2).
+- The reopening test could not be seen red for its own reason, which I did not point out in the brief. It only showed in the failure line number.
+- The docs script put its precondition check after the file edits, so it stopped halfway and I had to commit the partial result first.
+- The steps for the nginx pull request opened it as a draft and never said to mark it ready, so it sat unmerged for two pull requests.
+
+**Result:** RESOLVED. Limits:
+- Nothing sets a resolved date for defects that were resolved before this change, so existing rows keep a null date.
+- The members list endpoint, editing a defect's other fields and the reset email link are still open, and are listed in the README.
+- `PUT` on a defect still only changes its status.
+
+**Source verification:** The CI log of the red run (`Failed: 3, Passed: 138, Total: 141`, failures at lines 55, 65 and 73), the local `dotnet test` runs (4 of 4, then 138 passed with 3 skipped of 141), `dotnet format` and the diffs of the changed files.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: November 15, 2026
+Last updated: November 16, 2026

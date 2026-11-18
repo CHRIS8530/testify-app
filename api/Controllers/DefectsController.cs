@@ -157,6 +157,8 @@ public class DefectsController : ControllerBase
             return BadRequest(new { error = new { message = "Status must be one of: Open, In Progress, Resolved, Closed", code = "INVALID_STATUS" }, status = 400 });
 
         defect.Status = req.Status;
+        // Resolving or closing a defect sets its resolved date, and reopening it clears the date again.
+        defect.ResolvedAt = req.Status is "Resolved" or "Closed" ? (DateTime?)(defect.ResolvedAt ?? DateTime.UtcNow) : null;
         defect.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();

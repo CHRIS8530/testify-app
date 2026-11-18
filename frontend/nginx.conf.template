@@ -5,6 +5,7 @@ server {
 
   # API_UPSTREAM is filled in when the container starts (no trailing slash), for example http://api:8080.
   # The browser only talks to this server, so the API looks like part of the same site.
+  # The API sets its own security headers, so none are added here.
   location /api/ {
     proxy_pass ${API_UPSTREAM};
     proxy_http_version 1.1;
@@ -19,6 +20,15 @@ server {
   # The app uses client side routing. A direct visit to /projects/abc has no file on disk,
   # so anything that is not a real file falls back to index.html and React Router takes over.
   location / {
+    # Security headers for the site. "always" adds them to error responses too.
+    # Browsers ignore Strict-Transport-Security over plain http, so it only takes effect over HTTPS.
+    # Styles allow 'unsafe-inline' because the React code uses inline style attributes. Scripts do not.
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;
+
     try_files $uri $uri/ /index.html;
   }
 }
