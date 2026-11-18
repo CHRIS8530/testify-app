@@ -11,18 +11,15 @@ namespace Testify.Api.Controllers;
 public class ProjectMembersController : ControllerBase
 {
     private readonly TestifyDbContext _db;
-    private readonly IEmailService _emailService;
     private readonly IAuditLogService _auditLogService;
     private readonly ILogger<ProjectMembersController> _logger;
 
     public ProjectMembersController(
         TestifyDbContext db,
-        IEmailService emailService,
         IAuditLogService auditLogService,
         ILogger<ProjectMembersController> logger)
     {
         _db = db;
-        _emailService = emailService;
         _auditLogService = auditLogService;
         _logger = logger;
     }
@@ -77,13 +74,7 @@ public class ProjectMembersController : ControllerBase
 
         _db.ProjectMembers.Add(member);
 
-        // Generate and store invite token
-        var inviteToken = Guid.NewGuid().ToString();
-
         await _db.SaveChangesAsync();
-
-        // Send invitation email
-        await _emailService.SendInvitationEmailAsync(invitedUser.Email, project.Name, req.Role, inviteToken);
 
         await _auditLogService.LogActionAsync(
             userId,
