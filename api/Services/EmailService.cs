@@ -3,7 +3,6 @@ namespace Testify.Api.Services;
 public interface IEmailService
 {
     Task SendPasswordResetEmailAsync(string email, string username, string resetToken);
-    Task SendInvitationEmailAsync(string email, string projectName, string role, string inviteToken);
 }
 
 public class MockEmailService : IEmailService
@@ -28,25 +27,6 @@ public class MockEmailService : IEmailService
             "{ResetUrl}\n\n" +
             "This link expires in 1 hour.",
             email, username, resetUrl
-        );
-
-        await Task.CompletedTask;
-    }
-
-    public async Task SendInvitationEmailAsync(string email, string projectName, string role, string inviteToken)
-    {
-        var acceptUrl = $"http://localhost:5173/accept-invite?token={inviteToken}";
-
-        _logger.LogInformation(
-            "MOCK EMAIL - Project Invitation\n" +
-            "To: {Email}\n" +
-            "Subject: You've been invited to {ProjectName}\n\n" +
-            "Hi {Email},\n\n" +
-            "You've been invited to collaborate on '{ProjectName}' as a {Role}.\n\n" +
-            "Accept and join:\n" +
-            "{AcceptUrl}\n\n" +
-            "This link expires in 7 days.",
-            email, projectName, email, projectName, role, acceptUrl
         );
 
         await Task.CompletedTask;

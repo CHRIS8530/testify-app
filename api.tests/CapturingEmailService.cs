@@ -13,9 +13,4 @@ public class CapturingEmailService : IEmailService
         ResetTokens[email] = resetToken;
         return Task.CompletedTask;
     }
-
-    public Task SendInvitationEmailAsync(string email, string projectName, string role, string inviteToken)
-    {
-        return Task.CompletedTask;
-    }
 }
