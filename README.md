@@ -213,7 +213,7 @@ Compare sizes within one run, not across runs. The same postgres tag showed 292 
 - Inviting a member has no screen, and no invitation email is sent. The password reset email is mocked and written to the server log, and its link goes to a page that does not exist. There is no endpoint to list a project's members.
 - A defect's title, description and severity cannot be edited after it is raised.
 - Lint reports about ten warnings (React hook dependencies). They are warnings, not errors.
-- `npm audit` has one moderate finding left (react-router 6), triaged in [docs/SECURITY.md](docs/SECURITY.md). CI fails on high findings, and Dependabot proposes updates weekly.
+- `npm audit` has one moderate finding left (react-router 6), triaged in [docs/SECURITY.md](docs/SECURITY.md). CI fails on high findings in the production dependencies, reports findings in the build tools without blocking, and Dependabot proposes updates weekly.
 - More security limitations are listed in [docs/SECURITY.md](docs/SECURITY.md).
 
 ## Documentation
