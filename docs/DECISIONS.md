@@ -2056,6 +2056,49 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 62: The Dependabot Pull Requests Are Triaged, And Two Of Dependabot's Own Rules Cost Me Time
+
+**Date:** November 19, 2026
+
+**Context:** Dependabot opened eleven pull requests on November 15 (Decision 58). They sat for three days, because I put the triage after the nginx and dead code work, and by the time I started the audit gate had turned red on all of them (Decision 61). Each had to be judged by what it changes: four moved the runtime or the toolchain to a major version the project is not built or tested on, and the rest were ordinary bumps.
+
+**What I asked the AI:** Which to merge, which to close and in what order, and how to merge them when branch protection requires each branch to be up to date.
+
+**What it gave me:**
+1. A triage by title: close #81 (dotnet/sdk 10.0 to 11.0), #84 (dotnet/aspnet 10.0 to 11.0), #83 (node 22 to 26) and #86 (@types/node 24 to 26) with `@dependabot ignore this major version`, merge #85, #82, #87, #89 and #91 if green, and read #88 and #90 before touching them.
+2. A merge order with click by click steps (Update branch, wait for the four checks, merge commit).
+3. A prediction that #90 would fail: it changes `EntityFrameworkCore.InMemory` in the API project, and the test project pins the same package at the older version.
+
+**What I changed and why:**
+1. Merged six: #85 setup-node 4 to 7, #82 upload-artifact 4 to 7, #87 oxlint 1.82.0 to 1.93.0, #89 coverlet.collector 6.0.4 to 10.1.0, #91 Mvc.Testing 10.0.12 to 10.0.15, and #88 (Microsoft.AspNetCore.OpenApi and Microsoft.OpenApi). #88 left Microsoft.OpenApi at 2.13.0, still a 2.x version, so the fix from Decision 48 is intact. The merge log shows all six under their pull request numbers.
+2. Closed #81, #84, #83 and #86 with the ignore comment. Dependabot deletes a branch when its pull request is closed, and `git ls-remote` showed none of those four branches left.
+3. I had told myself to click Update branch on each Dependabot pull request. On #91 that added a merge commit with my name on it, and Dependabot answered `@dependabot rebase` with "Looks like this PR has been edited by someone other than Dependabot". `@dependabot recreate` rebuilt it from the current `main`, and it merged. It had a conflict in the first place because #89 and #91 changed neighbouring lines of `api.tests/Testify.Api.Tests.csproj`.
+4. #90 failed as predicted, with `NU1605: Warning As Error: Detected package downgrade: Microsoft.EntityFrameworkCore.InMemory from 10.0.15 to 10.0.12`: the API project asks for at least 10.0.15 and the test project, which references the API, pins 10.0.12. Dependabot never opened the matching pull request for `api.tests/`, because the limit of two open pull requests per folder (set in Decision 58) was used up by #89 and #91. So I changed both project files to 10.0.15 in one pull request (2 insertions, 2 deletions). #90 itself is not merged: once this is on `main` it has nothing left to change.
+5. Locally `dotnet test api.tests` restored without `NU1605` and ended with `Failed: 0, Passed: 138, Skipped: 3, Total: 141`, and `dotnet format` printed nothing. The `MSB3277` line count was 22 before and after, so the version bumps did not clear the EF Core version conflict. That goes to its own pull request.
+
+**What I did not understand at first:**
+- Update branch adds a merge commit authored by me, and Dependabot treats any commit it did not write as an edit and stops managing the pull request. For a Dependabot pull request the only tools are `@dependabot rebase` (if nobody touched it) and `@dependabot recreate`.
+- The open pull request limit applies per ecosystem and folder. A package that has to change in two folders can arrive half done, and NuGet turns a downgrade into an error (`NU1605`, warning as error) instead of picking the higher version.
+- Two pull requests that edit neighbouring lines of one file conflict even though they change different packages. Git compares lines, not packages.
+- A green run does not prove every change that merged. `upload-artifact` only runs when `e2e` fails, and `coverlet.collector` is a collector that `dotnet test` does not invoke without `--collect`, so those two are proven to restore and build, not to work.
+- `dotnet restore` needs a project or solution file, and the repo root has neither. `dotnet test api.tests` restores as part of the run, which is why `NU1605` was still checked.
+- A terminal that reloads can drop a pasted block without any error, so the next command ran against an unchanged tree. The clean `git status` was the only sign the block had not run.
+
+**Where the AI cost me time:**
+- The triage came three days after the pull requests opened.
+- The click by click steps told me to use Update branch on Dependabot pull requests, which cost two rounds on #91.
+- My first local check used `dotnet restore` at the repo root, which cannot work.
+
+**Result:** RESOLVED. Limits:
+- The ignore applies to that major version only, so a later .NET 12 or Node 28 will be proposed again.
+- `coverlet.collector` 10.1.0 and `upload-artifact` 7 merged without a test that exercises them.
+- The `MSB3277` EF Core version warning is still there.
+- I have not read Dependabot's documentation on its commands, or NuGet's on `NU1605`.
+
+**Source verification:** The CI log of #90 (the `NU1605` lines), Dependabot's comment on #91, the `git log` of the six merges, the local `dotnet test`, `dotnet format` and `MSB3277` count outputs, and `git ls-remote --heads origin` for the Dependabot branches.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: November 18, 2026
+Last updated: November 19, 2026
