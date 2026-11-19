@@ -1935,6 +1935,127 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 59: nginx Sends Security Headers For The Web App
+
+**Date:** November 15, 2026
+
+**Context:** Brief 3.5 asks for security headers (CSP, HSTS, X-Content-Type-Options, X-Frame-Options). The API sets them (Decision 29 onwards), but the static site served by nginx sent none, which Decision 50 recorded as a limit. A browser loads the site from nginx, so that is where headers such as `X-Frame-Options` and a CSP matter most.
+
+**What I asked the AI:** For the headers the site should send, with a CSP that fits this React app, written so that I could see a check fail first.
+
+**What it gave me:**
+1. A brief: the five headers, kept in `location /` only because the API already sets its own, and a CSP of `default-src 'self'` with `script-src 'self'`, `style-src 'self' 'unsafe-inline'`, `img-src 'self' data:`, `connect-src 'self'`, `frame-ancestors 'none'`, `base-uri 'self'` and `form-action 'self'`.
+2. A CI step in the `containers` job that fetches `/` from the web container and checks that each header is present.
+3. The change to `frontend/nginx.conf.template`.
+
+**What I changed and why:**
+1. Committed the check first (10 insertions). In CI the response showed only nginx's defaults (`Server: nginx/1.30.6`, `Content-Type`, `ETag` and so on) and the step failed with `Missing header: x-content-type-options: nosniff`.
+2. Added the five `add_header` lines to `location /` with `always`, so error responses carry them too. They stay out of `location /api/`, because an `add_header` inside a location replaces any set above it, and the API sends its own headers.
+3. Kept `unsafe-inline` for styles only. The React code uses inline `style` attributes in many components, so a stricter style policy would break the page. Scripts stay `'self'`: the built `index.html` has one module script from `/assets/` and no inline script.
+4. `connect-src 'self'` is enough because the browser calls the API on the page's own origin through the nginx proxy (Decision 52).
+5. Updated SECURITY.md, the README and the test strategy in the same push, so the docs are on the branch before the merge. All four checks were green.
+
+**What I did not understand at first:**
+- `add_header` in a location replaces headers inherited from the server level, so putting some at the server level and some in a location would have lost the first ones.
+- An internal redirect from `try_files` to `/index.html` enters `location /` again, so the fallback page gets the headers as well. That is why a direct visit to a client side route is covered.
+- A CSP is an allowlist the browser enforces. `curl` can show that the header is present, but only a browser can show that the page still works under it.
+- `Strict-Transport-Security` is ignored over plain http, so CI can see the header but it only has an effect once the site is served over HTTPS.
+
+**Where the AI cost me time:** Nothing significant. The red matched the prediction.
+
+**Result:** RESOLVED for the headers being present. Limits:
+- No test loads the page in a browser against the container stack, so a CSP mistake would only show in a real browser's console. I need to check the console for CSP errors once the app is live on Render.
+- `style-src` allows `'unsafe-inline'`, which weakens the CSP for styles.
+- HSTS has no `preload` and has not been verified over HTTPS.
+- I have not read nginx's documentation on `add_header` or MDN's documentation on CSP. That is still to do.
+
+**Source verification:** The CI log of the red run (the response headers and `Missing header: x-content-type-options: nosniff`), the `Vite` build output that shows one module script and no inline script, and the green CI run.
+
+---
+
+### Decision 60: A Defect Gets A Resolved Date, And The Dead Invitation Code Is Removed
+
+**Date:** November 16, 2026
+
+**Context:** CODE_REVIEW.md 3.11. `ProjectMembersController.InviteMember` generated an invite token, emailed it, and never stored it, so nothing could ever validate it. The email linked to `/accept-invite`, a page that does not exist, and the brief lists email notifications as out of scope. Separately, the `Defect` table has a `ResolvedAt` column that nothing ever set.
+
+**What I asked the AI:** To check each item in 3.11 against the brief, say what to cut, what to fix and what to leave, and to write the fix for the resolved date test first.
+
+**What it gave me:**
+1. A verdict per item: remove the invite token and the invitation email, fix `ResolvedAt`, and leave (but document) the members list endpoint, editing a defect's title, description and severity, and the hardcoded address in the reset email.
+2. Four tests for the resolved date, with the rule: moving a defect to Resolved or Closed sets the date if it is not set, and moving it back to Open or In Progress clears it. This is the pattern `TestRunsController` already uses for `CompletedAt`. In Progress having no date was expected to pass before and after on purpose.
+3. A two line change in `UpdateDefect`, and the removal of `SendInvitationEmailAsync` from the interface, the mock and the test double.
+
+**What I changed and why:**
+1. Committed the tests first. CI showed `Failed: 3, Passed: 138, Skipped: 0, Total: 141`, as predicted. `Resolved_SetsResolvedAt` and `Closed_SetsResolvedAt` failed with `Expected: Not Null, Actual: Null` (lines 55 and 65). `Reopening_ClearsResolvedAt` failed at line 73, which is its precondition (the date after Resolved), so the "reopening clears it" half could not be seen red until the setting half existed. `Test-Path api.tests\UnitTest1.cs` printed `False`: the empty test the review mentioned was already gone.
+2. Set `ResolvedAt` in `UpdateDefect` (2 insertions, where I had been told 3). The four tests passed locally.
+3. Removed the invite token, the email call and the `IEmailService` field from `ProjectMembersController`, the invitation method from the interface and the mock (20 lines), and from `CapturingEmailService`. The commit was 3 files, 1 insertion and 35 deletions. `dotnet format` printed nothing, and the whole suite ran `Failed: 0, Passed: 138, Skipped: 3, Total: 141`. The invite tests in `AuthorizationTests` and `AuditLogAccessTests` still pass, which proves inviting works without the email. All four checks were green in CI.
+4. Left alone, and documented as limits: the members list endpoint (not in the brief, and no screen invites anyone), editing a defect's title, description and severity (the brief only needs status changes), and the reset email's address of `localhost:5173`, because there is no reset page in the frontend and the email is mocked.
+5. The docs for this change were written before the nginx security headers pull request had merged, so the Decision 60 entry waited for it. Appending to the same place in the log from two branches would have conflicted.
+
+**What I did not understand at first:**
+- Removing a method from an interface breaks every class that implements it, including the test double in the test project. The compiler lists them, but only a build shows them.
+- `req.Status is "Resolved" or "Closed"` is a C# pattern that checks a value against several constants without repeating the variable. `defect.ResolvedAt ?? DateTime.UtcNow` keeps an existing date and only fills an empty one, so resolving twice does not move the date.
+- The invite flow added the member first and sent the email after, so the token was decorative: nothing depended on it. That is why it could go without changing behaviour.
+- A test that checks two steps (resolve, then reopen) fails at the first step while that step is missing, so a red run cannot show the second step. The green run is what covers it.
+- A script that edits several files and then checks a precondition has already changed the earlier files when the check fails. The guard has to come first, or the edits have to be undoable.
+- A pull request opened as a draft has no merge button until it is marked ready for review. I could not find where to merge the nginx pull request because it was still a draft.
+
+**Where the AI cost me time:**
+- The expected size of the `DefectsController` change was off by one (3 insertions against 2).
+- The reopening test could not be seen red for its own reason, which I did not point out in the brief. It only showed in the failure line number.
+- The docs script put its precondition check after the file edits, so it stopped halfway and I had to commit the partial result first.
+- The steps for the nginx pull request opened it as a draft and never said to mark it ready, so it sat unmerged for two pull requests.
+
+**Result:** RESOLVED. Limits:
+- Nothing sets a resolved date for defects that were resolved before this change, so existing rows keep a null date.
+- The members list endpoint, editing a defect's other fields and the reset email link are still open, and are listed in the README.
+- `PUT` on a defect still only changes its status.
+
+**Source verification:** The CI log of the red run (`Failed: 3, Passed: 138, Total: 141`, failures at lines 55, 65 and 73), the local `dotnet test` runs (4 of 4, then 138 passed with 3 skipped of 141), `dotnet format` and the diffs of the changed files.
+
+---
+
+### Decision 61: A New Advisory Turned The Audit Red On Every Pull Request, So The Gate Covers What Ships
+
+**Date:** November 18, 2026
+
+**Context:** Dependabot opened eleven pull requests on November 15 (Decision 58). I tried to merge six of them (#85 setup-node, #82 upload-artifact, #87 oxlint, #89 coverlet, #91 Mvc.Testing, #90 EF Core InMemory). Every one failed at the `Audit dependencies` step of the `frontend` job with `7 vulnerabilities (2 moderate, 5 high)`. Five of them did not touch the frontend's dependencies at all. The cause was a new high severity advisory for `picomatch` (ReDoS through repeated extglobs, GHSA-fc5q-39xc-vjpf), reaching the project through `fdir`, `tinyglobby`, `vite` and `@vitejs/plugin-react`. `main` itself would fail the same check, so the gate blocked all work. Decision 58 had listed this as a limit: a new advisory can turn the check red on an unchanged commit.
+
+**What I asked the AI:** How to read six identical failures on unrelated branches, whether the finding is real, and what to do.
+
+**What it gave me:**
+1. A reading of the output: the same seven findings on every branch means the cause is in `main`, not in the pull requests. The only fix npm offered was `npm audit fix --force`, which would install `vite@6.2.7`, a breaking downgrade, and the advisory range is `*`, which suggests no patched version exists.
+2. A chain of reasoning: `picomatch` is only used by the build tools. The deployed site is static files built from React, `react-dom` and `react-router-dom`, so the vulnerable package does not ship.
+3. A plan: make the blocking audit cover only the production dependencies, and keep a report-only step for the whole tree so the build tool findings stay visible.
+
+**What I changed and why:**
+1. Kept the six red runs as the evidence of the failure, instead of writing a new failing check: the same output on six branches is a stronger red than a made up one.
+2. Checked locally before changing the gate. `npm ls picomatch --omit=dev` printed `(empty)`, and `npm audit --omit=dev --audit-level=high` exited with 0 and listed only the known moderate react-router finding. Those two outputs are the evidence that `picomatch` is not in anything that ships. I would have stopped if either had said otherwise.
+3. Replaced the one audit step with two. `Audit production dependencies` runs `npm audit --omit=dev --audit-level=high` and blocks the merge. `Report all dependency findings (does not block)` runs the full audit with `continue-on-error: true`, so its output stays in every run's log without failing the job.
+4. Recorded `picomatch` in SECURITY.md as a triaged limit, and updated the README wording.
+5. All four checks were green on the pull request.
+
+**What I did not understand at first:**
+- `npm audit` has no ignore list. The only choice is what it covers, so the design question is which dependencies the gate is about.
+- `--omit=dev` audits only the dependencies that end up in the deployed app. A vulnerability in a build tool is a risk to the developer machine and to CI, not to users.
+- A gate that blocks on something that does not reach users stops all work for no gain. The opposite mistake is a report that nobody reads. The report step is named so that it says it does not block, and Decision 30 is the reminder of what a gate that cannot fail looks like. This one is a gate for production dependencies and a report for the rest, and the names say which is which.
+- A security gate can go red with no change to the code. I had listed that as a limit in Decision 58 without deciding what to do about it.
+
+**Where the AI cost me time:**
+- The Dependabot triage came three days after the pull requests opened, because I put it after the nginx and dead code work. By then the audit had turned red on all of them.
+- My plan called most of them "merge if green" and said a green run would prove each change. I did not allow for the audit gate failing on all of them for a reason unrelated to the change, so each one was blocked until now.
+
+**Result:** RESOLVED for the gate. The six Dependabot pull requests are rebased and merged separately after this one. Limits:
+- `picomatch` has no patched version yet. I have read only the advisory title, so I do not know the exact conditions for the ReDoS, and I have not tested that the build tools never pass it a hostile pattern.
+- The report step can be ignored by anyone. It is only as good as someone reading it.
+- The production audit does not cover the build tools. A serious advisory in a tool that signs or publishes the build would need a different decision.
+- I have not read npm's documentation on `npm audit --omit`. That is still to do.
+
+**Source verification:** The six CI logs of the failed `Audit dependencies` steps (all showing `7 vulnerabilities (2 moderate, 5 high)` and the same `picomatch` chain), the local `npm ls picomatch --omit=dev` and `npm audit --omit=dev` output, and the green CI run on this pull request.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: November 15, 2026
+Last updated: November 18, 2026

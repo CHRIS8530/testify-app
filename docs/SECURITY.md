@@ -10,8 +10,8 @@ This describes the code as it is today: what it protects, how, and what it does 
 | A02 Cryptographic Failures | Partly | Passwords use bcrypt (cost 10). Refresh and password reset tokens are random 256 bit values stored as SHA-256 hashes. HTTPS redirection and HSTS are on. Missing: key rotation and a secrets manager. |
 | A03 Injection | Addressed | Entity Framework Core parameterises every query and no user input is concatenated into SQL. React escapes rendered values. |
 | A04 Insecure Design | Partly | Access tokens last 15 minutes, refresh tokens rotate, roles follow least privilege. Missing: a formal threat model, detection of a stolen refresh token being reused, account lockout. |
-| A05 Security Misconfiguration | Partly | Security headers are set, CORS only allows the configured origins (never `*`), five methods and two headers, and the API refuses to start without its secrets. Missing: `AllowedHosts` is `*`. |
-| A06 Vulnerable Components | Partly | The `Microsoft.OpenApi` advisory (GHSA-v5pm-xwqc-g5wc) is fixed by upgrading to 2.7.5, and `dotnet list package --vulnerable` finds nothing. CI fails on high severity `npm audit` findings, and Dependabot proposes updates weekly. One moderate finding remains (react-router, see Known limitations). |
+| A05 Security Misconfiguration | Partly | Security headers are set on the API and by nginx on the web app, CORS only allows the configured origins (never `*`), five methods and two headers, and the API refuses to start without its secrets. Missing: `AllowedHosts` is `*`. |
+| A06 Vulnerable Components | Partly | The `Microsoft.OpenApi` advisory (GHSA-v5pm-xwqc-g5wc) is fixed by upgrading to 2.7.5, and `dotnet list package --vulnerable` finds nothing. CI fails on high severity `npm audit` findings in the production dependencies (what ships in the web app), reports findings in the build tools without blocking, and Dependabot proposes updates weekly. One moderate finding remains (react-router, see Known limitations). |
 | A07 Authentication Failures | Partly | Password rules, short lived JWT access tokens, an httpOnly, Secure, SameSite Strict refresh cookie limited to `/api/v1/auth`, and single use reset tokens that expire after 1 hour. Covered by `TokenSecurityTests`. Failed sign ins are throttled per email (5 within 15 minutes, then 429). Missing: multi factor authentication, and a block that survives an API restart. |
 | A08 Software and Data Integrity | Partly | Changes reach main through pull requests with required checks, the frontend installs from the lockfile (`npm ci`), and the schema changes through migrations. Missing: signed commits and artifact signing. |
 | A09 Logging and Monitoring | Partly | Writes and sign in events go to an audit log (who, what, which project, IP address, when). Missing: failed sign ins are not recorded, there is no central logging or alerting, and the IP address is the proxy's when deployed behind one. |
@@ -48,7 +48,7 @@ A global limit of 100 requests per minute per IP address (AspNetCoreRateLimit). 
 
 ## Security headers
 
-Every API response includes:
+The web app (nginx) sends `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Strict-Transport-Security` and a `Content-Security-Policy` that only allows its own origin for scripts, connections and frames. Styles also allow `unsafe-inline`, because the React code uses inline style attributes. HSTS is ignored by browsers over plain http, so it only takes effect on Render. Every API response includes:
 
 - `Strict-Transport-Security: max-age=31536000; includeSubDomains`
 - `X-Content-Type-Options: nosniff`
@@ -68,11 +68,12 @@ The API tests (xUnit, in-memory database) cover authorization, the audit log, to
 ## Known limitations
 
 - `npm audit` reports one moderate finding in react-router 6 (an open redirect in `<Link>` and `useNavigate`, and an SSR hydration issue). The SSR issue does not apply because the app is client side only. Every link target we build starts with a fixed `/projects` path, so I do not believe the open redirect applies, but I have not tested it. The fix is a breaking major upgrade to react-router 7, which Dependabot will propose so CI and the browser tests can check it.
+- `npm audit` reports a high severity advisory in `picomatch` (ReDoS through repeated extglobs, GHSA-fc5q-39xc-vjpf) that has no patched version yet. It reaches the project only through the build tools (vite, tinyglobby, fdir), which run on a developer machine and in CI and are not in the deployed site, so the production audit does not block on it and the full report still shows it. I have read only the advisory title, not its text. Check for a fixed version when Dependabot proposes one.
 - The OpenAPI document at `/openapi/v1.json` is served without signing in, in every environment, so anyone can read the list of endpoints.
 - A refresh token that is reused after rotation is rejected, but this does not end the user's other sessions.
 - SameSite Strict needs the frontend and the API to share a site. In the container stack nginx proxies `/api`, so the browser sees one origin and the refresh cookie is sent. If the API were called directly from another site, the cookie would not be sent.
 - The deployed database is meant to accept connections only from the other Render services (an empty IP allow list in `render.yaml`). That has not been checked on Render yet.
-- Invitations add the member straight away. The emailed link is not used, and emails are mocked.
+- Invitations add the member straight away. No invitation email is sent, and the password reset email is mocked.
 - Tokens that existed before they were hashed stopped working when that change was deployed.
 
 ### Past incident: committed database credential

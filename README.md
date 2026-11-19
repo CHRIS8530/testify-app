@@ -96,7 +96,7 @@ Nothing environment-specific is baked into the code. Settings come from configur
 
 The test levels, what each covers and what is not covered are in [docs/TEST_STRATEGY.md](docs/TEST_STRATEGY.md).
 
-**API tests** (137 tests, xUnit: 134 on the in-memory database and 3 on a real PostgreSQL in a container):
+**API tests** (141 tests, xUnit: 138 on the in-memory database and 3 on a real PostgreSQL in a container):
 
 ```bash
 dotnet test api.tests
@@ -190,7 +190,7 @@ Both services deploy when a push to `main` passes its checks (`autoDeployTrigger
 
 ## Container images
 
-The API has a multi-stage Dockerfile (`api/Dockerfile`) that runs as a non-root user. It builds from the repo root, and the final image holds only the ASP.NET runtime and the published files. The web app has its own multi-stage Dockerfile (`frontend/Dockerfile`). Node 22 builds the static site with `npm ci`, and the final image is `nginxinc/nginx-unprivileged`, which serves the files on port 8080 as user id 101, with no Node and no source in it. The API address is a build argument (`VITE_API_URL`, no default, so the build fails if it is missing), because Vite bakes it into the bundle at build time. Compose passes `/`, which means the same origin. `frontend/nginx.conf.template` proxies `/api/` to the API (the address comes from `API_UPSTREAM` when the container starts), so the browser only talks to one origin and needs no CORS. Any other path that is not a real file goes to `index.html`, so a direct visit to a client side route works.
+The API has a multi-stage Dockerfile (`api/Dockerfile`) that runs as a non-root user. It builds from the repo root, and the final image holds only the ASP.NET runtime and the published files. The web app has its own multi-stage Dockerfile (`frontend/Dockerfile`). Node 22 builds the static site with `npm ci`, and the final image is `nginxinc/nginx-unprivileged`, which serves the files on port 8080 as user id 101, with no Node and no source in it. The API address is a build argument (`VITE_API_URL`, no default, so the build fails if it is missing), because Vite bakes it into the bundle at build time. Compose passes `/`, which means the same origin. `frontend/nginx.conf.template` proxies `/api/` to the API (the address comes from `API_UPSTREAM` when the container starts), so the browser only talks to one origin and needs no CORS. Any other path that is not a real file goes to `index.html`, so a direct visit to a client side route works. nginx also sends the security headers listed in [docs/SECURITY.md](docs/SECURITY.md).
 
 The `containers` job in CI builds the API image, starts the database and the API with `docker compose up -d postgres api`, waits for `/api/v1/health` to answer, and checks that a CORS preflight from `http://localhost:3000` is allowed. It then builds the web app image and checks that it does not run as root and contains no Node. Docker Desktop does not start on the development machine, so CI is where this is proven. It then starts the web app together with the database and the API and checks four things: the site is served, a direct visit to a client side route such as `/projects/abc` gets the page (the nginx fallback works), the built JavaScript no longer contains the old API address `http://localhost:5000` (it calls the API on its own origin), and `/api/v1/health` through the web app returns the API's health JSON. It does not click through the app: a browser test against the container stack has not been written.
 
@@ -210,10 +210,10 @@ Compare sizes within one run, not across runs. The same postgres tag showed 292 
 - Most API tests use the in-memory database. Only 3 tests run on a real PostgreSQL (a smoke test and negative paging values), so other behaviour that differs between the two is not covered.
 - Only the test cases, defects, projects, test runs and audit log lists have a paging bounds check (limit 1 to 200) and a sort order. The test run results list has neither, and only the audit log returns a total count. The body of an unhandled exception (a 500) is not covered by the error shape filter.
 - Rate limiting is one global limit per IP, and behind a proxy every client shares the proxy's address. Sign in has a per email throttle (5 failures in 15 minutes, then 429), kept in memory, so it resets on a restart and anyone who knows an email can block it for a while.
-- Inviting a member has no screen, the emailed link goes nowhere, and emails are mocked and written to the server log. There is no endpoint to list a project's members.
-- A defect's title, description and severity cannot be edited after it is raised, and nothing sets its resolved date.
+- Inviting a member has no screen, and no invitation email is sent. The password reset email is mocked and written to the server log, and its link goes to a page that does not exist. There is no endpoint to list a project's members.
+- A defect's title, description and severity cannot be edited after it is raised.
 - Lint reports about ten warnings (React hook dependencies). They are warnings, not errors.
-- `npm audit` has one moderate finding left (react-router 6), triaged in [docs/SECURITY.md](docs/SECURITY.md). CI fails on high findings, and Dependabot proposes updates weekly.
+- `npm audit` has one moderate finding left (react-router 6), triaged in [docs/SECURITY.md](docs/SECURITY.md). CI fails on high findings in the production dependencies, reports findings in the build tools without blocking, and Dependabot proposes updates weekly.
 - More security limitations are listed in [docs/SECURITY.md](docs/SECURITY.md).
 
 ## Documentation
