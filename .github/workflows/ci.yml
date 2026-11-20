@@ -48,7 +48,7 @@ jobs:
         continue-on-error: true
         run: npm audit --audit-level=high
       - name: Lint
-        run: npm run lint
+        run: npm run lint -- --deny-warnings
 
       - name: Type-check and build
         run: npm run build
