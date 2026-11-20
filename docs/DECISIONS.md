@@ -2056,6 +2056,91 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 62: The Dependabot Pull Requests Are Triaged, And Two Of Dependabot's Own Rules Cost Me Time
+
+**Date:** November 19, 2026
+
+**Context:** Dependabot opened eleven pull requests on November 15 (Decision 58). They sat for three days, because I put the triage after the nginx and dead code work, and by the time I started the audit gate had turned red on all of them (Decision 61). Each had to be judged by what it changes: four moved the runtime or the toolchain to a major version the project is not built or tested on, and the rest were ordinary bumps.
+
+**What I asked the AI:** Which to merge, which to close and in what order, and how to merge them when branch protection requires each branch to be up to date.
+
+**What it gave me:**
+1. A triage by title: close #81 (dotnet/sdk 10.0 to 11.0), #84 (dotnet/aspnet 10.0 to 11.0), #83 (node 22 to 26) and #86 (@types/node 24 to 26) with `@dependabot ignore this major version`, merge #85, #82, #87, #89 and #91 if green, and read #88 and #90 before touching them.
+2. A merge order with click by click steps (Update branch, wait for the four checks, merge commit).
+3. A prediction that #90 would fail: it changes `EntityFrameworkCore.InMemory` in the API project, and the test project pins the same package at the older version.
+
+**What I changed and why:**
+1. Merged six: #85 setup-node 4 to 7, #82 upload-artifact 4 to 7, #87 oxlint 1.82.0 to 1.93.0, #89 coverlet.collector 6.0.4 to 10.1.0, #91 Mvc.Testing 10.0.12 to 10.0.15, and #88 (Microsoft.AspNetCore.OpenApi and Microsoft.OpenApi). #88 left Microsoft.OpenApi at 2.13.0, still a 2.x version, so the fix from Decision 48 is intact. The merge log shows all six under their pull request numbers.
+2. Closed #81, #84, #83 and #86 with the ignore comment. Dependabot deletes a branch when its pull request is closed, and `git ls-remote` showed none of those four branches left.
+3. I had told myself to click Update branch on each Dependabot pull request. On #91 that added a merge commit with my name on it, and Dependabot answered `@dependabot rebase` with "Looks like this PR has been edited by someone other than Dependabot". `@dependabot recreate` rebuilt it from the current `main`, and it merged. It had a conflict in the first place because #89 and #91 changed neighbouring lines of `api.tests/Testify.Api.Tests.csproj`.
+4. #90 failed as predicted, with `NU1605: Warning As Error: Detected package downgrade: Microsoft.EntityFrameworkCore.InMemory from 10.0.15 to 10.0.12`: the API project asks for at least 10.0.15 and the test project, which references the API, pins 10.0.12. Dependabot never opened the matching pull request for `api.tests/`, because the limit of two open pull requests per folder (set in Decision 58) was used up by #89 and #91. So I changed both project files to 10.0.15 in one pull request (2 insertions, 2 deletions). #90 itself is not merged: once this is on `main` it has nothing left to change.
+5. Locally `dotnet test api.tests` restored without `NU1605` and ended with `Failed: 0, Passed: 138, Skipped: 3, Total: 141`, and `dotnet format` printed nothing. The `MSB3277` line count was 22 before and after, so the version bumps did not clear the EF Core version conflict. That goes to its own pull request.
+
+**What I did not understand at first:**
+- Update branch adds a merge commit authored by me, and Dependabot treats any commit it did not write as an edit and stops managing the pull request. For a Dependabot pull request the only tools are `@dependabot rebase` (if nobody touched it) and `@dependabot recreate`.
+- The open pull request limit applies per ecosystem and folder. A package that has to change in two folders can arrive half done, and NuGet turns a downgrade into an error (`NU1605`, warning as error) instead of picking the higher version.
+- Two pull requests that edit neighbouring lines of one file conflict even though they change different packages. Git compares lines, not packages.
+- A green run does not prove every change that merged. `upload-artifact` only runs when `e2e` fails, and `coverlet.collector` is a collector that `dotnet test` does not invoke without `--collect`, so those two are proven to restore and build, not to work.
+- `dotnet restore` needs a project or solution file, and the repo root has neither. `dotnet test api.tests` restores as part of the run, which is why `NU1605` was still checked.
+- A terminal that reloads can drop a pasted block without any error, so the next command ran against an unchanged tree. The clean `git status` was the only sign the block had not run.
+
+**Where the AI cost me time:**
+- The triage came three days after the pull requests opened.
+- The click by click steps told me to use Update branch on Dependabot pull requests, which cost two rounds on #91.
+- My first local check used `dotnet restore` at the repo root, which cannot work.
+
+**Result:** RESOLVED. Limits:
+- The ignore applies to that major version only, so a later .NET 12 or Node 28 will be proposed again.
+- `coverlet.collector` 10.1.0 and `upload-artifact` 7 merged without a test that exercises them.
+- The `MSB3277` EF Core version warning is still there.
+- I have not read Dependabot's documentation on its commands, or NuGet's on `NU1605`.
+
+**Source verification:** The CI log of #90 (the `NU1605` lines), Dependabot's comment on #91, the `git log` of the six merges, the local `dotnet test`, `dotnet format` and `MSB3277` count outputs, and `git ls-remote --heads origin` for the Dependabot branches.
+
+---
+
+### Decision 63: One EF Core Relational Version For The API And The Tests
+
+**Date:** November 19, 2026
+
+**Context:** Every build of the test project printed warning MSB3277: a conflict between `Microsoft.EntityFrameworkCore.Relational` 10.0.4 and 10.0.11, resolved in favour of 10.0.4. I had noted it as harmless in Decisions 53 and 62, and the Dependabot version bumps (Decision 62) did not change it: the warning lines went from 22 to 22. A warning nobody acts on hides the next real one, and I did not know the cause.
+
+**What I asked the AI:** What causes the conflict, and how to fix it so it cannot come back unnoticed.
+
+**What it gave me:**
+1. A first theory: a minimum version in the Npgsql provider pulls an older `Relational` into the test project. It asked for `dotnet nuget why` output instead of guessing a fix.
+2. From that output, the cause. In the API project `Relational` resolves to 10.0.11, because `Microsoft.EntityFrameworkCore.Tools` 10.0.11 depends on `Design` 10.0.11, which depends on `Relational` 10.0.11. In the test project it resolves to 10.0.4, because the only thing that asks for it there is the Npgsql provider 10.0.3, and NuGet takes the lowest version that satisfies a request.
+3. The fix: a direct reference to `Microsoft.EntityFrameworkCore.Relational` 10.0.15 in the API project, `EntityFrameworkCore.Tools` moved to 10.0.15 to match, and a CI step that turns this warning into an error.
+
+**What I changed and why:**
+1. Reproduced it first, locally, with `dotnet build api.tests -warnaserror:MSB3277`. It failed with three `error MSB3277` lines naming 10.0.4 and 10.0.11, and exit code 1. That is the red. It was not seen in CI, and CI used a newer SDK than my machine (11.0.100 against 10.0.200-preview), but the same warning appears in the CI logs of earlier runs.
+2. Made the two changes in `api/Testify.Api.csproj` (2 insertions, 1 deletion). The same command then printed `Build succeeded.` with exit code 0, and `dotnet nuget why` showed `Relational` 10.0.15 under both the API and the Npgsql provider.
+3. `dotnet format --verify-no-changes` printed nothing and the suite ran `Failed: 0, Passed: 138, Skipped: 3, Total: 141`, so nothing else changed.
+4. Added a `Check for package version conflicts` step to the `api` job that runs `dotnet build api.tests -warnaserror:MSB3277` before the tests (2 insertions). All four checks were green on the pull request.
+5. Carried Decision 62 into this pull request with `git cherry-pick`, because the branch it was on had been deleted by GitHub after its pull request merged.
+
+**What I did not understand at first:**
+- `PrivateAssets="all"` on a package, which `Microsoft.EntityFrameworkCore.Tools` has, hides everything it depends on from projects that reference the API. So the API was compiled against `Relational` 10.0.11, but the test project never saw that version.
+- NuGet chooses the lowest version that satisfies every request, not the highest available. A version bump on a package that nothing asks for directly changes nothing.
+- MSB3277 is an assembly reference conflict found at build time, not a restore problem. The way to settle it is a direct reference in one place, so every project agrees on the same version.
+- `-warnaserror:MSB3277` promotes one warning code to an error. It does not make every warning an error.
+- The count of 22 lines was never 22 conflicts. One warning prints many lines, so the count only showed whether the warning was there.
+
+**Where the AI cost me time:**
+- My first theory (the Npgsql provider) was only half of it. The missing half, `PrivateAssets` hiding the `Tools` dependency, only appeared in the second output.
+- I suggested that merging the Dependabot bumps might clear the warning. It did not, and I should have said the bumps could not touch a package nobody references.
+- Decision 62 was written on a branch that merged and was deleted before the entry landed, so it had to be carried across.
+
+**Result:** RESOLVED. Limits:
+- The CI step has not been seen failing in CI. Its red was proven on my machine.
+- A new package that pulls a different `Relational` version through another path would fail that step, which is the intent, and the fix would again be an explicit version.
+- `EntityFrameworkCore.Tools` is a build-time tool and now moves with `Relational` by hand. Dependabot should propose them together, but I have not checked that it groups them.
+- I have not read NuGet's documentation on `PrivateAssets` or on version resolution.
+
+**Source verification:** The local red run (three `error MSB3277` lines and exit code 1), the green run (`Build succeeded.`, exit code 0), the `dotnet nuget why` output before and after, the local `dotnet test` and `dotnet format` output, and the green CI run on pull request #96.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: November 18, 2026
+Last updated: November 19, 2026

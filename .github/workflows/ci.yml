@@ -20,6 +20,8 @@ jobs:
       - name: Check formatting
         run: dotnet format api/Testify.Api.csproj --verify-no-changes
 
+      - name: Check for package version conflicts
+        run: dotnet build api.tests -warnaserror:MSB3277
       - name: Run tests
         run: dotnet test api.tests
 
