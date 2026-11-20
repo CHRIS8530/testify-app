@@ -2183,6 +2183,42 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 65: The Lint Gate Was Seen To Fail In CI
+
+**Date:** November 20, 2026
+
+**Context:** Decision 64 put `--deny-warnings` into the CI lint step, but I never saw that step fail in CI. The first commit of that pull request (`f9af10b`) shows no check result on GitHub, because I pushed the fixes before I looked at its run. A gate that has never been seen to fail is the same trap as the `|| true` in Decision 30, and Decision 45 did this check for `e2e`.
+
+**What I asked the AI:** Whether the missing check on `f9af10b` meant the gate was broken, and for the smallest way to prove it in CI.
+
+**What it gave me:**
+1. A reading of my local output. `npm run lint -- --deny-warnings` printed 11 warnings and `red exit code: 0`, but I had piped the output through `Out-String`, and in PowerShell `$LASTEXITCODE` then no longer belongs to npm. A probe file with one unused variable showed `npx oxlint` exits 0 on a warning and `npx oxlint --deny-warnings` exits 1.
+2. A throwaway branch with one unused variable and a pull request that is never merged, so the only thing that can fail is the lint step.
+
+**What I changed and why:**
+1. Branch `test/lint-gate-fails` with one file, `frontend/src/tmpWarn.tsx`, containing `export function Tmp() { const unused = 1; return null; }`. I pushed it and opened PR #100.
+2. The `frontend` job failed at the Lint step in 0 seconds. The log shows: `Run npm run lint -- --deny-warnings`, then `Warning: src/tmpWarn.tsx:1:31: Variable 'unused' is declared but never used. Unused variables should start with a '_'.`, then `Found 1 warning and 0 errors.`, then `Error: Process completed with exit code 1.`
+3. I closed the pull request without merging, deleted the branch on GitHub and locally, and `git status --short` printed nothing.
+4. Decision 64 had said the gate was only proven by the local probe. This entry is the CI proof it said it was waiting for.
+
+**What I did not understand at first:**
+- In PowerShell, `$LASTEXITCODE` is set by the last native command in a pipeline. Piping npm into `Out-String` or `Select-String` hides npm's exit code, so a "red exit code: 0" can come from the pipe and not from the tool.
+- A commit shows a check result only if its run was started and finished before the branch moved on. When I pushed a second commit quickly, the first one had no result I could read later.
+- The log line `Error: Process completed with exit code 1.` is the proof that matters. It is the step's own exit code, with no pipe in between, which is exactly what the merge rule reads.
+
+**Where the AI cost me time:**
+- I gave you the whole fix as one block before the red run of the first commit was looked at, so the evidence was gone by the time I asked for it.
+- My first exit code measurement had the pipe mistake in it, and Decision 64 was written with a claim that was not measured. It cost two extra pull requests to correct.
+
+**Result:** RESOLVED. The lint gate fails in CI on a single warning. Limits:
+- I did not capture whether GitHub blocked the merge button on PR #100, so the block is the behaviour GitHub documents for a required check and not something I recorded.
+- I did not record whether `api`, `e2e` and `containers` stayed green on that run.
+- Only warnings that `oxlint` reports fail the step. A pattern it does not check cannot fail it.
+
+**Source verification:** The CI log of the failing run on PR #100 (the four lines quoted above), the local probe output (`npx oxlint` exit 0, `npx oxlint --deny-warnings` exit 1), and the clean `git status --short` after the cleanup.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
 Last updated: November 20, 2026
