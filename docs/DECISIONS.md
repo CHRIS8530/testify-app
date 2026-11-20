@@ -2141,6 +2141,48 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 64: The 11 Lint Warnings Are Fixed, And Warnings Now Fail The Build
+
+**Date:** November 20, 2026
+
+**Context:** `npm run lint` had reported 11 warnings since Decision 39 and I had called them "known" in several decisions and in the README. A warning that is known and never fixed is how a real one gets lost, and the review (3.11 follow-up) listed them as loose ends. They came from three causes: `apiCall` is a new function on every render, so seven effects could not list it as a dependency without running again on every render (`exhaustive-deps`); `TestCasesTab` called a function from an effect that was declared after the effect (`immutability`, plus its `exhaustive-deps` warning), and `TestRunsTab` called a function from an effect that sets state (`set-state-in-effect`, plus its `exhaustive-deps` warning); and `AuthContext.tsx` exported a context object next to a component (`only-export-components`).
+
+**What I asked the AI:** To group the 11 warnings by cause, fix each cause once, and make the build fail on any warning so they cannot come back, written so that I could see the check fail first.
+
+**What it gave me:**
+1. The three causes and a fix for each: keep the token in a ref and wrap `apiCall` in `useCallback`, move the data loading into the effect with a counter to ask for a reload, and move the context object to its own file.
+2. A CI change: `npm run lint -- --deny-warnings`, committed first.
+3. One guarded script that checked the red locally, wrote four whole files and nine guarded edits, proved the green locally, and only then committed.
+
+**What I changed and why:**
+1. Committed the CI change first. Before the fixes, `npm run lint -- --deny-warnings` printed `Found 11 warnings and 0 errors.` and exited with 1 on my machine. That was the red.
+2. `useApi.ts`: the token moved into a ref that is updated in an effect, and `apiCall` became a `useCallback` that depends only on `refreshAccessToken`, which is already stable. This keeps the same behaviour (add the token, refresh once on a 401, return nothing for a 204) with an identity that does not change. Six pages then list `apiCall` in their effect dependencies.
+3. `TestCasesTab` and `TestRunsTab`: the load function moved inside the effect, the way the other pages already did it, and the handlers that reload the list (delete, save, create run) bump a `reloadKey` counter that the effect depends on. I copied the pattern the other pages used because the linter had not flagged them.
+4. `AuthContextObject.ts` holds the context and its type, `AuthContext.tsx` keeps only the provider, and `App.tsx` and `useAuth.ts` import from the new file.
+5. Locally, `npm run lint -- --deny-warnings` then printed `Found 0 warnings and 0 errors.` with exit code 0, `npx tsc -b` printed nothing and the build succeeded. All four checks were green on the pull request, including the 8 browser tests in `e2e`.
+
+**What I did not understand at first:**
+- Listing a function in an effect's dependencies only works if the function keeps its identity between renders. A function defined in the component body is new on every render, so the choices are to stabilise it (`useCallback`) or to define it inside the effect.
+- Assigning to a ref while rendering is not allowed by the React rules, so the ref is updated inside an effect. Effects run in the order they are declared, and `useApi` is called before a page's own effects, so the ref is current by the time a page loads its data.
+- The lint rules that flagged `immutability` and `set-state-in-effect` come from the React Compiler checks that `oxlint` includes. They flagged the two tabs and not the pages that define the function inside the effect, so the effect pattern was the safe shape to copy.
+- `--deny-warnings` makes `oxlint` exit with 1 when it finds a warning, which is what a CI step needs.
+- When the checker finds a "read before initialised" problem it stops analysing that component, which is why `TestCasesTab` showed no `set-state-in-effect` warning before and could have shown one after the first fix.
+
+**Where the AI cost me time:**
+- I asked for a search of all imports of `AuthContext` with `Select-String -Recurse`, which PowerShell does not support. I had already read the two importers from the code, so it cost one failed command.
+- I had not run `--deny-warnings` before putting it in CI, so the script ran it locally as its first step and refused to continue unless it saw exactly 11 warnings.
+
+**Result:** RESOLVED. Limits:
+- The red was seen locally, and the CI run that should have failed was the `frontend` check on the first commit.
+- Nothing tests the token refresh path in the browser. The 8 end to end tests sign in and use the app for a few seconds, so a mistake in the ref approach would only show after the access token expires, 15 minutes later. I tested that path by hand in Decision 38, and I did not repeat it for this change.
+- A reload after a change now happens through an effect, one render later than before. The list looks the same, but I have not measured it.
+- `oxlint` implements the React rules itself, so another linter version could report different warnings.
+- I have not read React's documentation on `useCallback` and effect dependencies.
+
+**Source verification:** The local `oxlint` output before the fixes (`Found 11 warnings and 0 errors.`, exit code 1) and after (`Found 0 warnings and 0 errors.`, exit code 0), the `oxlint` warning list from earlier runs (`exhaustive-deps`, `immutability`, `set-state-in-effect`, `only-export-components`), `tsc` and the Vite build output, and the green CI run on this pull request.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: November 19, 2026
+Last updated: November 20, 2026
