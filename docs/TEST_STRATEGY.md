@@ -32,7 +32,7 @@ Each test creates its own user with a unique email, so there is no shared seeded
 
 ## Where the tests run
 
-- **On every pull request and every push to main (CI):** the `api` job runs the format check and the API tests. The `frontend` job runs lint, the type check and the build. The `e2e` job builds the API, starts it in the Test environment, waits for the health endpoint, then runs the Playwright tests. The `containers` job builds the API image, starts the database and the API with Docker Compose, and checks the health endpoint and a CORS preflight. It also builds the web app image and checks that it runs as a non-root user and contains no Node. It then starts the web app with the database and the API and checks that the page is served, that a client side route falls back to the page, that the bundle calls the API on its own origin, that `/api/v1/health` through the web app returns the API's health JSON, and that the page carries the security headers. It checks the build and the configuration, not the business rules. All four are required checks, so a failing check blocks the merge.
+- **On every pull request and every push to main (CI):** the `api` job runs the format check, a build that fails on a package version conflict (MSB3277) and the API tests. The `frontend` job audits the production dependencies, runs lint with every warning treated as a failure, then the type check and the build. The `e2e` job builds the API, starts it in the Test environment, waits for the health endpoint, then runs the Playwright tests. The `containers` job builds the API image, starts the database and the API with Docker Compose, and checks the health endpoint and a CORS preflight. It also builds the web app image and checks that it runs as a non-root user and contains no Node. It then starts the web app with the database and the API and checks that the page is served, that a client side route falls back to the page, that the bundle calls the API on its own origin, that `/api/v1/health` through the web app returns the API's health JSON, and that the page carries the security headers. It checks the build and the configuration, not the business rules. All four are required checks, so a failing check blocks the merge.
 - **On a developer machine:**
   - API tests: `dotnet test api.tests`
   - Browser tests: start the API in the Test environment (in memory database, higher rate limit), then run `npx playwright test` in `frontend`. The exact commands are in the README.
@@ -47,10 +47,12 @@ Most API tests use the in-memory database and a fresh user per test. The Postgre
 - **A real PostgreSQL.** The in-memory database behaves differently in ways that hid bugs before: string comparison is case sensitive on PostgreSQL, a negative offset is a SQL error, and raw SQL does not run. Only 3 tests run on a real PostgreSQL so far (a smoke test and negative paging values), so the other differences are still not covered.
 - **Rate limiting.** The global per IP limit has no automated test, and the browser tests raise it. The per email sign in throttle is tested.
 - **Other browsers.** Only Chromium is used.
+- **Token refresh in the browser.** The 8 browser tests sign in and use the app for a few seconds, so nothing waits for the 15 minute access token to expire. That path was checked by hand (Decision 38) and not again after the `useApi` change (Decision 64).
+- **The container stack in a browser.** CI checks the container stack with `curl` (page, route fallback, headers, API through the proxy). No browser test runs against it, so a Content Security Policy mistake would only show in a real browser console.
 - **Role boundaries in the browser.** Editor and viewer limits are tested at the API level only, because there is no screen to invite a member yet.
 - **Email.** It is mocked, so password reset and invitations are tested only up to the point the mock receives them.
 - **Accessibility and load.** There is no automated check for either.
 
 ## Exit criteria
 
-A pull request can merge when the `api`, `frontend` and `e2e` checks are green.
+A pull request can merge when the `api`, `frontend`, `e2e` and `containers` checks are green.

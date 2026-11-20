@@ -109,7 +109,7 @@ They cover authorization, the audit log, token handling, input validation, CORS,
 ```bash
 cd frontend
 npx tsc -b
-npm run lint
+npm run lint -- --deny-warnings
 npm run build
 ```
 
@@ -139,8 +139,8 @@ npx playwright test
 
 **CI** runs on every pull request and on pushes to `main`. It has four jobs, and all four must pass before a pull request can be merged (`containers` is described under Container images below):
 
-- `api`: a format check and the API tests.
-- `frontend`: `npm ci`, lint, then the type-check and build.
+- `api`: a format check, a build that fails when the API and the test project use different versions of an EF Core package, and the API tests.
+- `frontend`: `npm ci`, an audit of the production dependencies (high findings fail the job, the rest is only reported), lint with every warning treated as a failure, then the type-check and build.
 - `e2e`: builds the API, starts it in the Test environment, waits for the health endpoint, then runs the 8 Playwright tests. If a test fails, the job prints the API log and keeps the Playwright report for 7 days.
 
 ## API
@@ -224,4 +224,4 @@ Compare sizes within one run, not across runs. The same postgres tag showed 292 
 - [docs/ai-engineering-challenge-brief.md](docs/ai-engineering-challenge-brief.md): the challenge brief
 - The planning documents (schema, endpoints, components, Docker) were written before coding. Where they differ from the code, the code is the source of truth.
 
-**Last updated:** November 1, 2026
+**Last updated:** November 20, 2026
