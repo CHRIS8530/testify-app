@@ -1,6 +1,6 @@
 # Testify Security Documentation
 
-This describes the code as it is today: what it protects, how, and what it does not. It is updated when the code changes. Where a claim depends on tests, the test class is named. The reasoning behind each change is in `docs/DECISIONS.md` (Decisions 29 and 32 to 37).
+This describes the code as it is today: what it protects, how, and what it does not. It is updated when the code changes. Where a claim depends on tests, the test class is named. The reasoning behind each change is in `docs/DECISIONS.md` (Decisions 29, 32 to 37, 55 to 59 and 61).
 
 ## OWASP Top 10: where we stand
 
