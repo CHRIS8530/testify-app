@@ -36,7 +36,7 @@ export function ProjectDetailPage() {
       }
     };
     fetchProject();
-  }, [id]);
+  }, [id, apiCall]);
 
   if (isLoading) {
     return (

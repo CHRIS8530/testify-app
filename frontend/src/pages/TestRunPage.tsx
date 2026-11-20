@@ -89,7 +89,7 @@ export function TestRunPage() {
       }
     };
     load();
-  }, [projectId, runId]);
+  }, [projectId, runId, apiCall]);
 
   const backLink = (
     <Link to={`/projects/${projectId}?tab=runs`} className="back-link">

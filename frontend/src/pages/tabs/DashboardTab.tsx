@@ -64,7 +64,7 @@ export function DashboardTab({ projectId }: { projectId: string }) {
       }
     };
     load();
-  }, [projectId]);
+  }, [projectId, apiCall]);
 
   if (isLoading) return <div className="muted">Loading dashboard...</div>;
   if (error || !data) return <div className="error-banner">{error || 'Dashboard not available'}</div>;
