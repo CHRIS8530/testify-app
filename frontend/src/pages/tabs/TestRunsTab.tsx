@@ -41,22 +41,23 @@ export function TestRunsTab({ projectId }: { projectId: string }) {
   const [casesLoading, setCasesLoading] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [isCreating, setIsCreating] = useState(false);
+  // Bumped after a run is created, so the list loads again.
+  const [reloadKey, setReloadKey] = useState(0);
   const { apiCall } = useApi();
 
-  const loadRuns = async () => {
-    try {
-      const data = await apiCall(`/api/v1/projects/${projectId}/test-runs`);
-      setRuns(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load test runs');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
+    const loadRuns = async () => {
+      try {
+        const data = await apiCall(`/api/v1/projects/${projectId}/test-runs`);
+        setRuns(Array.isArray(data) ? data : []);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load test runs');
+      } finally {
+        setIsLoading(false);
+      }
+    };
     loadRuns();
-  }, [projectId]);
+  }, [apiCall, projectId, reloadKey]);
 
   const openPicker = async () => {
     setError('');
@@ -112,7 +113,7 @@ export function TestRunsTab({ projectId }: { projectId: string }) {
         throw err;
       }
       setShowPicker(false);
-      await loadRuns();
+      setReloadKey((key) => key + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create test run');
     } finally {

@@ -56,7 +56,7 @@ export function DefectsTab({ projectId }: { projectId: string }) {
       }
     };
     load();
-  }, [projectId]);
+  }, [projectId, apiCall]);
 
   const changeStatus = async (defect: Defect, status: string) => {
     setUpdatingId(defect.id);

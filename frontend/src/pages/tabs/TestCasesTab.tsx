@@ -15,28 +15,29 @@ export function TestCasesTab({ projectId }: { projectId: string }) {
   const [error, setError] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showEditor, setShowEditor] = useState(false);
+  // Bumped after a change, so the list loads again.
+  const [reloadKey, setReloadKey] = useState(0);
   const { apiCall } = useApi();
 
   useEffect(() => {
+    const fetchCases = async () => {
+      try {
+        const data = await apiCall(`/api/v1/projects/${projectId}/test-cases`);
+        setCases(Array.isArray(data) ? data : []);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load cases');
+      } finally {
+        setIsLoading(false);
+      }
+    };
     fetchCases();
-  }, [projectId]);
-
-  const fetchCases = async () => {
-    try {
-      const data = await apiCall(`/api/v1/projects/${projectId}/test-cases`);
-      setCases(Array.isArray(data) ? data : []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load cases');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, [apiCall, projectId, reloadKey]);
 
   const handleDelete = async (caseId: string) => {
     if (!confirm('Delete this test case?')) return;
     try {
       await apiCall(`/api/v1/projects/${projectId}/test-cases/${caseId}`, { method: 'DELETE' });
-      fetchCases();
+      setReloadKey((key) => key + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete');
     }
@@ -53,7 +54,7 @@ export function TestCasesTab({ projectId }: { projectId: string }) {
           <TestCaseEditor
             projectId={projectId}
             caseId={editingId || undefined}
-            onSave={() => { setShowEditor(false); setEditingId(null); fetchCases(); }}
+            onSave={() => { setShowEditor(false); setEditingId(null); setReloadKey((key) => key + 1); }}
             onCancel={() => { setShowEditor(false); setEditingId(null); }}
           />
         </div>

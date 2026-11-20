@@ -34,7 +34,7 @@ export function TestCaseEditor({ projectId, caseId, onSave, onCancel }: TestCase
       };
       fetchCase();
     }
-  }, [caseId, projectId]);
+  }, [caseId, projectId, apiCall]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
