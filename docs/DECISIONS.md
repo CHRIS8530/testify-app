@@ -2099,6 +2099,48 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 63: One EF Core Relational Version For The API And The Tests
+
+**Date:** November 19, 2026
+
+**Context:** Every build of the test project printed warning MSB3277: a conflict between `Microsoft.EntityFrameworkCore.Relational` 10.0.4 and 10.0.11, resolved in favour of 10.0.4. I had noted it as harmless in Decisions 53 and 62, and the Dependabot version bumps (Decision 62) did not change it: the warning lines went from 22 to 22. A warning nobody acts on hides the next real one, and I did not know the cause.
+
+**What I asked the AI:** What causes the conflict, and how to fix it so it cannot come back unnoticed.
+
+**What it gave me:**
+1. A first theory: a minimum version in the Npgsql provider pulls an older `Relational` into the test project. It asked for `dotnet nuget why` output instead of guessing a fix.
+2. From that output, the cause. In the API project `Relational` resolves to 10.0.11, because `Microsoft.EntityFrameworkCore.Tools` 10.0.11 depends on `Design` 10.0.11, which depends on `Relational` 10.0.11. In the test project it resolves to 10.0.4, because the only thing that asks for it there is the Npgsql provider 10.0.3, and NuGet takes the lowest version that satisfies a request.
+3. The fix: a direct reference to `Microsoft.EntityFrameworkCore.Relational` 10.0.15 in the API project, `EntityFrameworkCore.Tools` moved to 10.0.15 to match, and a CI step that turns this warning into an error.
+
+**What I changed and why:**
+1. Reproduced it first, locally, with `dotnet build api.tests -warnaserror:MSB3277`. It failed with three `error MSB3277` lines naming 10.0.4 and 10.0.11, and exit code 1. That is the red. It was not seen in CI, and CI used a newer SDK than my machine (11.0.100 against 10.0.200-preview), but the same warning appears in the CI logs of earlier runs.
+2. Made the two changes in `api/Testify.Api.csproj` (2 insertions, 1 deletion). The same command then printed `Build succeeded.` with exit code 0, and `dotnet nuget why` showed `Relational` 10.0.15 under both the API and the Npgsql provider.
+3. `dotnet format --verify-no-changes` printed nothing and the suite ran `Failed: 0, Passed: 138, Skipped: 3, Total: 141`, so nothing else changed.
+4. Added a `Check for package version conflicts` step to the `api` job that runs `dotnet build api.tests -warnaserror:MSB3277` before the tests (2 insertions). All four checks were green on the pull request.
+5. Carried Decision 62 into this pull request with `git cherry-pick`, because the branch it was on had been deleted by GitHub after its pull request merged.
+
+**What I did not understand at first:**
+- `PrivateAssets="all"` on a package, which `Microsoft.EntityFrameworkCore.Tools` has, hides everything it depends on from projects that reference the API. So the API was compiled against `Relational` 10.0.11, but the test project never saw that version.
+- NuGet chooses the lowest version that satisfies every request, not the highest available. A version bump on a package that nothing asks for directly changes nothing.
+- MSB3277 is an assembly reference conflict found at build time, not a restore problem. The way to settle it is a direct reference in one place, so every project agrees on the same version.
+- `-warnaserror:MSB3277` promotes one warning code to an error. It does not make every warning an error.
+- The count of 22 lines was never 22 conflicts. One warning prints many lines, so the count only showed whether the warning was there.
+
+**Where the AI cost me time:**
+- My first theory (the Npgsql provider) was only half of it. The missing half, `PrivateAssets` hiding the `Tools` dependency, only appeared in the second output.
+- I suggested that merging the Dependabot bumps might clear the warning. It did not, and I should have said the bumps could not touch a package nobody references.
+- Decision 62 was written on a branch that merged and was deleted before the entry landed, so it had to be carried across.
+
+**Result:** RESOLVED. Limits:
+- The CI step has not been seen failing in CI. Its red was proven on my machine.
+- A new package that pulls a different `Relational` version through another path would fail that step, which is the intent, and the fix would again be an explicit version.
+- `EntityFrameworkCore.Tools` is a build-time tool and now moves with `Relational` by hand. Dependabot should propose them together, but I have not checked that it groups them.
+- I have not read NuGet's documentation on `PrivateAssets` or on version resolution.
+
+**Source verification:** The local red run (three `error MSB3277` lines and exit code 1), the green run (`Build succeeded.`, exit code 0), the `dotnet nuget why` output before and after, the local `dotnet test` and `dotnet format` output, and the green CI run on pull request #96.
+
+---
+
 **Note:** This log is living. New decisions will be added as work continues.
 
 Last updated: November 19, 2026
