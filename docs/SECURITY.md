@@ -6,7 +6,7 @@ This describes the code as it is today: what it protects, how, and what it does 
 
 | Risk | Status | What we do, and what is missing |
 |---|---|---|
-| A01 Broken Access Control | Addressed | Every project endpoint checks the signed-in user's role on the project (owner, editor or viewer). No token gives 401, an unknown project 404, not enough access 403. Covered by `AuthorizationTests` and `AuditLogAccessTests`. Missing: an admin role. |
+| A01 Broken Access Control | Addressed | Every project endpoint checks the signed-in user's role on the project (owner, editor or viewer). No token gives 401, an unknown project 404, not enough access 403. Covered by `AuthorizationTests` and `AuditLogAccessTests`. `UpdateResult` (PATCH on a test run result) looked the result up by run and result id only, so an editor on their own project could change results in another project. Fixed in PR #110 (the lookup now requires the run to belong to the project in the URL) and covered by `ResultAccessTests`. The other write endpoints already scope their lookups to the project, but I have only read them, not tested each one. Missing: an admin role. |
 | A02 Cryptographic Failures | Partly | Passwords use bcrypt (cost 10). Refresh and password reset tokens are random 256 bit values stored as SHA-256 hashes. HTTPS redirection and HSTS are on. Missing: key rotation and a secrets manager. |
 | A03 Injection | Addressed | Entity Framework Core parameterises every query and no user input is concatenated into SQL. React escapes rendered values. |
 | A04 Insecure Design | Partly | Access tokens last 15 minutes, refresh tokens rotate, roles follow least privilege. Missing: a formal threat model, detection of a stolen refresh token being reused, account lockout. |
