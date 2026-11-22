@@ -119,7 +119,8 @@ public class TestRunResultsController : ControllerBase
         if (userId == Guid.Empty)
             return Unauthorized(new { error = new { message = "Unauthorized", code = "UNAUTHORIZED" }, status = 401 });
 
-        var result = await _db.TestRunResults.FirstOrDefaultAsync(r => r.Id == resultId && r.TestRunId == runId);
+        // The run must belong to the project in the URL, otherwise the role check below would be done on the wrong project.
+        var result = await _db.TestRunResults.FirstOrDefaultAsync(r => r.Id == resultId && r.TestRunId == runId && r.TestRun.ProjectId == projectId);
         if (result == null)
             return NotFound(new { error = new { message = "Result not found", code = "NOT_FOUND" }, status = 404 });
 
