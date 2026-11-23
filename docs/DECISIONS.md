@@ -2219,6 +2219,38 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ---
 
+### Decision 66: A Result Could Be Changed Through Another Project's URL
+
+**Date:** November 22, 2026
+
+**Context:** I compared the challenge brief, CODE_REVIEW.md and the code, and a read of `TestRunResultsController.UpdateResult` suggested it never checked that the run belonged to the project in the URL. SECURITY.md said every project endpoint checks the caller's role on the project.
+
+**What I asked the AI:** To compare the brief, the review and the code, say what exists and what does not, and give me a way to prove each claim instead of trusting it.
+
+**What it gave me:** A gap table, a list of file checks I could run in PowerShell, and a probe test for the suspected cross-project write.
+
+**What I changed and why:**
+1. Ran the file checks first. Every code-level claim was confirmed.
+2. Ran the probe: `Expected: Not OK, Actual: OK`. Bob, who owns only his own project, changed a result in Alice's project.
+3. Turned the probe into `ResultAccessTests` and committed it first. Red: `total: 3, failed: 2, succeeded: 1`. The tamper test showed the result persisted as "Pass" instead of "Not Run". The third test (the owner updating in their own project) passes before and after on purpose.
+4. Fixed it in one line: the lookup now also requires `r.TestRun.ProjectId == projectId`, so a mismatched URL returns 404. Green: `total: 144, failed: 0, skipped: 3`. PR #110, all four checks green.
+5. Corrected the SECURITY.md claim.
+
+**What I did not understand at first:**
+- I had assumed that if a role check passes, the request is safe. It isn't. The check ran correctly, but on the project id in the URL, while the result came from a different project. I had never thought about the difference between "is this person allowed here" and "does this data actually belong here". Both checks have to happen, and I only had the first one.
+- 141 passing tests did not catch it because every test used a matching URL, so none of them sent a mismatched one.
+- My first edit went into the wrong method (`GetResults`) and produced `CS0103` errors, because I replaced a line by eye. A guarded script that refuses to run unless the target text appears exactly once fixed that.
+
+**Where the AI cost me time:** The AI-written review (section 2) and my own SECURITY.md both missed this. The AI also had me edit the wrong line once because I did not check which method I was in.
+
+**Result:** RESOLVED for `UpdateResult`. Limits:
+- Proven on the in-memory database only. No Postgres test covers it.
+- I have only read, not tested, the other write endpoints for the same pattern.
+- Not yet verified: deleting a test case that is in a run, and inviting a member, on a real PostgreSQL. Both are suspected to fail there and are still open.
+
+**Source verification:** The probe failure output, the red and green `dotnet test` summaries, the `git diff --stat` (2 insertions, 1 deletion) and the green CI run on PR #110.
+
+---
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: November 20, 2026
+Last updated: November 22, 2026
