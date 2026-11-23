@@ -2251,6 +2251,36 @@ The password stopped working on 7 October, so the leftover string in git history
 **Source verification:** The probe failure output, the red and green `dotnet test` summaries, the `git diff --stat` (2 insertions, 1 deletion) and the green CI run on PR #110.
 
 ---
+### Decision 67: Proving The Defect Endpoints Reject Another Project's Defect
+
+**Date:** November 23, 2026
+
+**Context:** After Decision 66, I grepped every child-id lookup in the controllers. `UpdateDefect` and `DeleteDefect` load the defect by id alone, then load its test case and return 404 if that case is in another project. I read that as safe, but only `UpdateResult` had been proven broken and fixed, so I wanted proof for these two instead of trusting my reading.
+
+**What I asked the AI:** For one test per endpoint using a mismatched project id, in the same pattern as `ResultAccessTests`, with no controller changes.
+
+**What it gave me:** `DefectProjectScopeTests`: 6 tests. Update and delete each have a status-code test (404) and a tamper test (the defect is unchanged or still there). Two control tests show the owner can still update and delete their own defect.
+
+**What I changed and why:**
+1. Wrote the file from the terminal and committed it. Green on the real code: `Failed: 0, Passed: 6, Total: 6`.
+2. Because the tests passed straight away, I proved they can fail. I temporarily changed `if (testCase?.ProjectId != projectId)` to `if (false && ...)` in both endpoints. Four tests failed: both update tests and both delete tests. The two owner control tests still passed. I reverted the mutation with `git checkout` and `git status --short` printed nothing.
+3. Full suite: `Failed: 0, Passed: 147, Skipped: 3, Total: 150`. PR #112, all checks green.
+
+**What I did not understand at first:**
+- A test that passes the first time proves nothing until you have seen it fail. The mutation run is what makes the green result mean something.
+- My script put `$ErrorActionPreference = "Stop"` in the same session as a `2>&1` pipe. PowerShell then treats dotnet's stderr lines as errors and stops at the first one, so the first mutation run showed only one `[FAIL]` and the green run printed nothing. I had to redo it with the setting back to `Continue`.
+- The test runner prints `Passed!  - Failed: ...`, not `Test summary`, when its output is piped. My filter matched nothing, so I read the last lines instead.
+
+**Where the AI cost me time:** The script and the filter I was given both had the mistakes above. The mutation proof was also not fully read from a summary line: the 4 failures are counted from the four `[FAIL]` lines.
+
+**Result:** RESOLVED. The defect update and delete scope is now tested. Limits:
+- In-memory database only. The check is a C# comparison after loading rows, so I expect Postgres to behave the same, but no test shows it.
+- The test case, test run and project endpoints are still only read, not tested, for the same mismatched-project case.
+- The Postgres delete and invite suspicions from Decision 66 are still open.
+
+**Source verification:** The green `Passed: 6` run, the four `[FAIL]` lines from the mutation run, the clean `git status --short` afterwards, and the green CI run on PR #112.
+
+---
 **Note:** This log is living. New decisions will be added as work continues.
 
-Last updated: November 22, 2026
+Last updated: November 23, 2026
