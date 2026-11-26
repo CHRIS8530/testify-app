@@ -1,4 +1,4 @@
-using Npgsql;
+﻿using Npgsql;
 using Testify.Api.Services;
 using Xunit;
 
@@ -50,5 +50,56 @@ public class DatabaseUrlTests
     public void ToConnectionString_RejectsAnythingThatIsNotAPostgresUrl(string value)
     {
         Assert.Throws<FormatException>(() => DatabaseUrl.ToConnectionString(value));
+    }
+
+    // Neon and Render hand over URLs like postgresql://user:pass@host/db?sslmode=require.
+    // The query string used to be dropped, so TLS was requested by Npgsql's default but never enforced.
+
+    [Fact]
+    public void ToConnectionString_ReadsSslModeFromTheQueryString()
+    {
+        var result = DatabaseUrl.ToConnectionString("postgresql://appuser:secret@db.example.com/appdb?sslmode=require");
+
+        Assert.Equal(SslMode.Require, new NpgsqlConnectionStringBuilder(result).SslMode);
+    }
+
+    [Fact]
+    public void ToConnectionString_ReadsTheHyphenatedSslModes()
+    {
+        var result = DatabaseUrl.ToConnectionString("postgresql://appuser:secret@db.example.com/appdb?sslmode=verify-full");
+
+        Assert.Equal(SslMode.VerifyFull, new NpgsqlConnectionStringBuilder(result).SslMode);
+    }
+
+    [Fact]
+    public void ToConnectionString_ReadsChannelBindingFromTheQueryString()
+    {
+        var result = DatabaseUrl.ToConnectionString("postgresql://appuser:secret@db.example.com/appdb?sslmode=require&channel_binding=require");
+
+        var builder = new NpgsqlConnectionStringBuilder(result);
+        Assert.Equal(SslMode.Require, builder.SslMode);
+        Assert.Equal(ChannelBinding.Require, builder.ChannelBinding);
+    }
+
+    [Fact]
+    public void ToConnectionString_RejectsAnUnknownSslMode()
+    {
+        Assert.Throws<FormatException>(() =>
+            DatabaseUrl.ToConnectionString("postgresql://appuser:secret@db.example.com/appdb?sslmode=banana"));
+    }
+
+    [Fact]
+    public void ToConnectionString_RejectsAnUnknownChannelBinding()
+    {
+        Assert.Throws<FormatException>(() =>
+            DatabaseUrl.ToConnectionString("postgresql://appuser:secret@db.example.com/appdb?sslmode=require&channel_binding=banana"));
+    }
+    // Passes before and after on purpose. It proves a URL with no query string keeps Npgsql's defaults.
+    [Fact]
+    public void ToConnectionString_WithNoQueryString_KeepsTheDefaultSslMode()
+    {
+        var result = DatabaseUrl.ToConnectionString("postgresql://appuser:secret@db.example.com/appdb");
+
+        Assert.Equal(new NpgsqlConnectionStringBuilder().SslMode, new NpgsqlConnectionStringBuilder(result).SslMode);
     }
 }
