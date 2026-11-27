@@ -1728,6 +1728,8 @@ The password stopped working on 7 October, so the leftover string in git history
 
 ### Decision 54: render.yaml Describes The Deployment, Checked Against Render's Schema
 
+**Update (Decision 68):** the database part of this decision is superseded. The database moved to Neon and is no longer declared in `render.yaml`. The rest of the decision still stands.
+
 **Date:** November 12, 2026
 
 **Context:** CODE_REVIEW.md 4.3 and brief 3.4: infrastructure defined as code, with no setup that lives only in a dashboard. The only thing on Render was a free database, and that database expires 30 days after it is created. My earlier plan, written before I saw the expiry date, was to leave the database out of the Blueprint and paste its connection string. That was reversed once I saw that `testify-db-2` would be deleted on November 12.
@@ -2281,6 +2283,45 @@ The password stopped working on 7 October, so the leftover string in git history
 **Source verification:** The green `Passed: 6` run, the four `[FAIL]` lines from the mutation run, the clean `git status --short` afterwards, and the green CI run on PR #112.
 
 ---
-**Note:** This log is living. New decisions will be added as work continues.
+### Decision 68: Neon Replaces The Render Database, With A Separate Dev Branch
 
-Last updated: November 23, 2026
+**Date:** November 27, 2026
+
+**Context:** Brief 3.4 asks for configuration through environment variables only, two separated environments (local and deployed), and a documented persistence strategy. The Render free database expires 30 days after it is created (Decision 54), and my local secret pointed at the same database the deployed app would use, which is the same hazard as CODE_REVIEW 0.3 in a new place.
+
+**What I asked the AI:** Whether the converter from Decision 53 would work for Neon, which connection string to use (direct or pooled), and how to keep local development away from the database the deployed app uses.
+
+**What it gave me:**
+1. A recommendation for the direct string, because startup runs `Database.Migrate()`, and a plan to make the converter keep `sslmode` and `channel_binding`.
+2. A check that Npgsql might already parse URLs itself. It does not: Npgsql 10.0.3 threw `Couldn't set postgresql://...`, so the converter is needed.
+3. A read-only check of my repository before any work. It showed the converter change already existed, uncommitted, on `fix/christo/neon-database`, so the work was not repeated.
+
+**What I changed and why:**
+1. Kept the converter change: `sslmode` and `channel_binding` are read through lookup tables, and an unknown value throws `FormatException` instead of being guessed. I added a test for an unknown `channel_binding`, which had none.
+2. Against the old converter, 5 of the 13 `DatabaseUrlTests` fail (`sslmode=require` came back as `Prefer`, `verify-full` as `Prefer`, `channel_binding=require` as `Prefer`, and `banana` was accepted twice). Against the new one, 13 pass. The old converter dropped the query string, so a URL that said "require" was not enforced.
+3. Ran the real API against Neon `production` with the direct string. The migration lock worked, no migrations were applied (the schema was already there), and the health endpoint answered `healthy` and `connected` in 0.72 s. Each query takes about 250 to 290 ms from my laptop in Cape Town to us-east-1.
+4. Created a Neon `dev` branch and put its string in user secrets. The host id differs from `production`, so pressing F5 no longer points at the database the deployed app will use. I did not yet capture a health check against the `dev` branch.
+5. Removed the `databases:` block from `render.yaml` and made `DATABASE_URL` a dashboard secret (`sync: false`). The two Render addresses are left as they were until the services exist.
+
+**What I did not understand at first:**
+- `SslMode.Prefer` is Npgsql's default and means TLS is optional. A URL with `sslmode=require` and a converter that ignores it connects with an optional-TLS setting, with no error.
+- `Copy-Item` keeps the source file's old modified time, so after swapping the new file back the build judged it up to date and reused the DLL built from the old code. The second "green" run showed the same 5 failures. The real green run was the later one, after a real rebuild. `--no-incremental` avoids this.
+- When piped, `dotnet test` prints `Passed!` or `Failed!` lines, not `Test summary`, so my filter printed nothing twice and I never saw the full-suite result locally. CI's run is the result that counts.
+- The direct and pooled Neon strings are different hosts, and the migration lock is the reason to use the direct one. I have not tested the pooled one.
+
+**Where the AI cost me time:**
+- The first audit ran on an old sync and proposed work that already existed on my machine. Checking first saved a duplicate.
+- The red and green script was wrong: the green half reused stale build output.
+
+**Result:** RESOLVED for the connection and the configuration. Limits:
+- Nothing is deployed, so none of this has run on Render.
+- The cold start after Neon scales to zero is not measured.
+- Render's services are in Oregon and Neon is in us-east-1, so every query crosses the continent. Not changed yet.
+- I have not read Neon's documentation on backup, restore or branch limits, and I have not confirmed that Render asks for a `sync: false` value when a Blueprint is applied.
+- The pooled connection string is untested.
+
+**Source verification:** The local outputs only: the failed Npgsql parse, the 5 red and 13 green test runs, the migration log lines and the health response. I have not yet read Neon's connection and branching documentation, Npgsql's documentation on `SslMode` and `ChannelBinding`, or Render's documentation on `sync: false`.
+
+---**Note:** This log is living. New decisions will be added as work continues.
+
+Last updated: November 27, 2026
