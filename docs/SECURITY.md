@@ -72,7 +72,7 @@ The API tests (xUnit, in-memory database) cover authorization, the audit log, to
 - The OpenAPI document at `/openapi/v1.json` is served without signing in, in every environment, so anyone can read the list of endpoints.
 - A refresh token that is reused after rotation is rejected, but this does not end the user's other sessions.
 - SameSite Strict needs the frontend and the API to share a site. In the container stack nginx proxies `/api`, so the browser sees one origin and the refresh cookie is sent. If the API were called directly from another site, the cookie would not be sent.
-- The deployed database is meant to accept connections only from the other Render services (an empty IP allow list in `render.yaml`). That has not been checked on Render yet.
+- The database is on Neon and is reached over TLS with a password. A `DATABASE_URL` that says `sslmode=require` and `channel_binding=require` is enforced (`DatabaseUrlTests`). I have not set an IP allow list and have not reviewed Neon's own access controls. The production string lives only in Render's dashboard, and local development uses a separate Neon `dev` branch with its own string in user secrets. Nothing has been deployed yet, so none of this has run on Render.
 - Invitations add the member straight away. No invitation email is sent, and the password reset email is mocked.
 - Tokens that existed before they were hashed stopped working when that change was deployed.
 

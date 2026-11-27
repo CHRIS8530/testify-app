@@ -6,7 +6,7 @@ Testify is a lightweight test run and defect tracker. You create projects, write
 
 Built for an AI-assisted engineering challenge. Every significant decision is recorded in [docs/DECISIONS.md](docs/DECISIONS.md) and the security model in [docs/SECURITY.md](docs/SECURITY.md).
 
-**Status:** every core feature in the brief works end to end when run locally. **The app is not deployed yet.** Only the PostgreSQL database exists on Render. See Deployment and Known Limitations below.
+**Status:** every core feature in the brief works end to end when run locally. **The app is not deployed yet.** The database is a Neon PostgreSQL project, and nothing runs on Render yet. See Deployment and Known Limitations below.
 
 ## What you can do
 
@@ -39,7 +39,7 @@ flowchart LR
 | Part | What |
 |---|---|
 | API | C#, .NET 10, ASP.NET Core controllers, Entity Framework Core |
-| Database | PostgreSQL (Render for the shared database) |
+| Database | PostgreSQL (Neon) |
 | Web | React 19, TypeScript, Vite, react-router v6, plain CSS |
 | API tests | xUnit, mostly on the in-memory database, plus 3 tests on a real PostgreSQL in a Testcontainers container |
 | Browser tests | Playwright (Chromium), 8 tests, run locally and in CI |
@@ -47,7 +47,7 @@ flowchart LR
 
 ## Run it locally
 
-You need the .NET 10 SDK, Node 22, and a PostgreSQL database (a local one, or a hosted one such as Render).
+You need the .NET 10 SDK, Node 22, and a PostgreSQL database (a local one, or a Neon branch kept for development, separate from the one the deployed app uses).
 
 **1. Store the API secrets with user secrets.** They live in your user profile, outside the repo, and only load in the Development environment. Replace the placeholders with your own values, and never commit them.
 
@@ -85,7 +85,7 @@ Nothing environment-specific is baked into the code. Settings come from configur
 | Name | Used by | What it is |
 |---|---|---|
 | `ConnectionStrings__DefaultConnection` | API | The PostgreSQL connection string. The API stops at startup if neither this nor `DATABASE_URL` is set. |
-| `DATABASE_URL` | API | A `postgres://` URL, used when no connection string is set. This is how Render hands a service its database. |
+| `DATABASE_URL` | API | A `postgres://` or `postgresql://` URL, used when no connection string is set. This is the form Neon hands out. `sslmode` and `channel_binding` in the URL are honoured. Use the direct (not pooled) connection string. |
 | `JWT_SECRET` | API | The key that signs access tokens. |
 | `CORS_ALLOWED_ORIGINS` | API | Comma separated list of web app addresses allowed to call the API, never `*`. Development gets `http://localhost:5173` from `api/appsettings.Development.json`. Every other environment must set it. |
 | `RATE_LIMIT_PER_MINUTE` | API | Requests allowed per minute per IP address. 100 when it is not set. The browser tests raise it, because they make many requests from one address. |
@@ -164,29 +164,28 @@ The OpenAPI document is served at `/openapi/v1.json`, generated from the control
 
 ## Deployment
 
-**The app is not live yet.** `render.yaml` describes the whole deployment on Render's free plan, and CI checks it against Render's own schema on every pull request. It has not been applied yet, so nothing in it has run on Render.
+**The app is not live yet.** `render.yaml` describes the two web services on Render's free plan (the database is on Neon and is not in the Blueprint), and CI checks it against Render's own schema on every pull request. It has not been applied yet, so nothing in it has run on Render.
 
-What the Blueprint creates, all in the Oregon region:
+What the Blueprint creates, all in the Oregon region (the database is on Neon and is not part of it):
 
 | Resource | What | Notes |
 |---|---|---|
-| `testify-db` | PostgreSQL, free plan | `ipAllowList` is empty, which should make it reachable only from the services below (not yet checked on Render). Free databases expire 30 days after creation and hold 1 GB. |
-| `testify-api` | Docker web service built from `api/Dockerfile`, free plan | Gets `DATABASE_URL` from the database, a generated `JWT_SECRET` and `PORT=8080`. Health check: `/api/v1/health`. |
+| `testify-api` | Docker web service built from `api/Dockerfile`, free plan | Gets `DATABASE_URL` from the Render dashboard (`sync: false`, pasted by hand), a generated `JWT_SECRET` and `PORT=8080`. Health check: `/api/v1/health`. |
 | `testify-web` | Docker web service built from `frontend/Dockerfile`, free plan | nginx serves the site and proxies `/api` to the API, so the browser sees one origin and the refresh cookie is sent. |
 
 Both services deploy when a push to `main` passes its checks (`autoDeployTrigger: checksPass`).
 
 **How to deploy it** (steps in the Render dashboard):
 
-1. If an old free database still exists in the workspace, delete it first. As I understand it, a workspace can have one free PostgreSQL database at a time.
-2. In Render choose New, then Blueprint, connect this repository, select `render.yaml`, and apply it.
+1. In Neon, copy the direct (not pooled) connection string of the `production` branch. Local development uses a separate `dev` branch.
+2. In Render choose New, then Blueprint, connect this repository, select `render.yaml`, and apply it. Render should ask for `DATABASE_URL`, because it is marked `sync: false`. Paste the Neon string there (not yet seen on Render).
 3. Wait for `testify-api` to go live, open its address plus `/api/v1/health`, and check that it answers `{"status":"healthy", ...}`.
 4. Open the address of `testify-web` and sign in.
 5. If Render gave the services other addresses than `testify-api.onrender.com` and `testify-web.onrender.com`, set `API_UPSTREAM` on `testify-web` and `CORS_ALLOWED_ORIGINS` on `testify-api` to the real ones, and redeploy.
 
-**Free plan limits that affect the app:** a free web service goes to sleep after 15 minutes without traffic and takes about a minute to wake up (nginx waits up to 90 seconds for the API). The workspace gets 750 free instance hours a month shared by all free web services, so two services that never slept would not fit. The database is deleted 30 days after it is created.
+**Free plan limits that affect the app:** a free web service goes to sleep after 15 minutes without traffic and takes about a minute to wake up (nginx waits up to 90 seconds for the API). The workspace gets 750 free instance hours a month shared by all free web services, so two services that never slept would not fit. The Neon compute may also scale to zero when idle, which would slow the first request after a quiet period. That has not been measured.
 
-**Backup and persistence strategy:** the free database has no automated backups and its data does not survive the 30 days. The schema does: migrations rebuild it every time the API starts against a new empty database, so the fix for an expired database is to apply the Blueprint again. To keep real data you would upgrade the database to a paid plan (a cost I have not checked), or take a copy with `pg_dump` before it expires. That needs a temporary entry in the database's access list for your own address, because it allows no outside connections. None of this is automated or tested.
+**Backup and persistence strategy:** the data lives in Neon, not on Render, so redeploying or deleting the Render services does not touch it. The schema is rebuilt by the migrations that run when the API starts, so an empty Neon database becomes usable on the next start. Neon's own backup and restore options (and what the free plan allows) have not been checked yet, so I make no claim about them. A manual copy with `pg_dump` against the direct connection string is possible, but it is not automated or tested. Local development uses a separate Neon `dev` branch, so it never touches the data the deployed app uses.
 
 ## Container images
 
@@ -224,4 +223,4 @@ Compare sizes within one run, not across runs. The same postgres tag showed 292 
 - [docs/ai-engineering-challenge-brief.md](docs/ai-engineering-challenge-brief.md): the challenge brief
 - The planning documents (schema, endpoints, components, Docker) were written before coding. Where they differ from the code, the code is the source of truth.
 
-**Last updated:** November 20, 2026
+**Last updated:** November 27, 2026
