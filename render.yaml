@@ -1,16 +1,8 @@
-# Describes the whole deployment on Render's free plan. Everything is in the Oregon region.
+# Describes the two Render web services (API and web app). The database is on Neon, not Render.
 # CI checks this file against Render's own schema on every pull request.
 
-databases:
-  - name: testify-db
-    plan: free
-    region: oregon
-    databaseName: testify
-    user: testify
-    # An empty list means no connections from outside Render. Only the services below can reach it.
-    ipAllowList: []
-
 services:
+
   # The API. Render builds the same Dockerfile that CI builds.
   - type: web
     name: testify-api
@@ -26,11 +18,10 @@ services:
       # The container listens on 8080 (ASPNETCORE_URLS in the Dockerfile). Render's default is 10000.
       - key: PORT
         value: "8080"
-      # Render hands the database over as a URL. The API converts it (api/Services/DatabaseUrl.cs).
+      # The Neon connection string (direct, not pooled), pasted in the Render dashboard. It never enters git.
+      # The API converts the URL and keeps sslmode and channel_binding (api/Services/DatabaseUrl.cs).
       - key: DATABASE_URL
-        fromDatabase:
-          name: testify-db
-          property: connectionString
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       # Needed at startup. Behind the nginx proxy the browser calls the API on its own origin, so CORS is not used.
