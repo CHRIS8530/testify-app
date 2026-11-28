@@ -2359,6 +2359,41 @@ The password stopped working on 7 October, so the leftover string in git history
 **Source verification:** The CI log of the tests-only commit (`Failed: 3, Passed: 157, Total: 160`, the `23503` message and the stack trace), the `MSB1001` output from `dotnet test --no-incremental`, and the local runs after the fix (3 of 3, then `Passed: 156, Skipped: 4`).
 
 ---
+### Decision 70: Deleting A Test Run That Has Defects Returns 409, Proven On A Real PostgreSQL
+
+**Date:** November 28, 2026
+
+**Context:** The limit I listed in Decision 69: `Defect` points at `TestRunResult` with `ON DELETE RESTRICT`, and deleting a run cascades to its results, so I suspected that deleting a run with defects would fail on PostgreSQL. The brief says a defect links back to the test case and run that produced it. The in-memory provider does not enforce foreign keys, so no existing test could show it.
+
+**What I asked the AI:** For the same pattern as Decision 69: tests first, then a fix. I chose 409 again, because a defect is a record someone raised and a delete of its run should not silently destroy it.
+
+**What it gave me:**
+1. Three in-memory tests (`TestRunDeleteTests`): a run with a defect returns 409 with the code `TEST_RUN_HAS_DEFECTS`, the run is still there afterwards, and a run with results but no defects can still be deleted (passes before and after on purpose).
+2. One real PostgreSQL test added to `PostgresDeleteTests`, so no second container is started.
+3. A five line check in `TestRunsController.DeleteTestRun`: if any defect belongs to one of the run's results, return 409 in the standard error shape.
+
+**What I changed and why:**
+1. Committed the tests alone first. Locally the two in-memory tests failed (`Failed: 2, Passed: 1, Total: 3`). CI showed `Failed: 3, Passed: 161, Skipped: 0, Total: 164`: the delete returned 204 where 409 was expected, the follow-up read returned 404 where 200 was expected, and the PostgreSQL test failed with `PostgresException 23503: update or delete on table "TestRunResults" violates foreign key constraint "FK_Defects_TestRunResults_TestRunResultId" on table "Defects"`, thrown at `TestRunsController.cs` line 193. So the suspicion from Decision 69 was true.
+2. Added the check. Locally: `TestRunDeleteTests` 3 of 3, and the full suite `Failed: 0, Passed: 159, Skipped: 5, Total: 164`. The 5 skips are the PostgreSQL tests, which need Docker. `dotnet format` printed nothing.
+3. The green commit showed a green tick on GitHub (PR #119). I did not copy the CI summary line into this entry.
+
+**What I did not understand at first:**
+- Deleting the run is one request, but the database removes the results as a cascade and the defect restriction blocks that cascade. The error names the results table, not the runs table, which is easy to misread.
+- I had written in Decision 69 that this was likely. I still only believed it until CI showed the constraint name, which is why the red run was worth doing.
+- A branch cut from `main` before a merge lands does not contain that merge. I built on #117 before it was in `main` and the script failed on a missing file. Fetch and check `origin/main` before building on a merged PR.
+
+**Where the AI cost me time:**
+- It told me to branch and build on #117's files before confirming #117 was merged, which cost two rounds.
+- It first said the PR link would appear on every push. It only appears on the first one, and GitHub had already created PR #119 automatically.
+
+**Result:** RESOLVED for deleting a run. Limits:
+- Deleting a project that has runs with defects hits the same rule through test cases and results. I have read the model and not tested it.
+- A run with defects can never be deleted until its defects are deleted. There is no delete-run button in the UI, so nothing visible changes. I read that and did not try it.
+- Neither 409 message has been tried in the browser.
+
+**Source verification:** The CI log of the tests-only commit (`Failed: 3, Passed: 161, Total: 164`, the `23503` message naming `FK_Defects_TestRunResults_TestRunResultId`, line 193), the local runs (3 of 3, then `Passed: 159, Skipped: 5`), and the green tick on the fix commit in PR #119.
+
+---
 **Note:** This log is living. New decisions will be added as work continues.
 
 Last updated: November 28, 2026
