@@ -164,6 +164,11 @@ public class TestCasesController : ControllerBase
         if (await ProjectAccess.GetRoleAsync(_db, projectId, userId) < ProjectRole.Editor)
             return this.ForbiddenResponse();
 
+        // Results point at the test case with ON DELETE RESTRICT, so deleting a case that is in a run would be
+        // a database error. Answer 409 and keep the run history instead.
+        if (await _db.TestRunResults.AnyAsync(r => r.TestCaseId == id))
+            return Conflict(new { error = new { message = "This test case is part of a test run and cannot be deleted", code = "TEST_CASE_IN_USE" }, status = 409 });
+
         _db.TestCases.Remove(testCase);
         await _db.SaveChangesAsync();
 
