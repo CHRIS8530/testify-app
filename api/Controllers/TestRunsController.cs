@@ -189,6 +189,11 @@ public class TestRunsController : ControllerBase
         if (await ProjectAccess.GetRoleAsync(_db, projectId, userId) < ProjectRole.Editor)
             return this.ForbiddenResponse();
 
+        // Defects point at a run's results with ON DELETE RESTRICT, so deleting a run that has defects would be
+        // a database error. Answer 409 and keep the defects instead.
+        if (await _db.Defects.AnyAsync(d => d.TestRunResult.TestRunId == id))
+            return Conflict(new { error = new { message = "This test run has defects and cannot be deleted", code = "TEST_RUN_HAS_DEFECTS" }, status = 409 });
+
         _db.TestRuns.Remove(testRun);
         await _db.SaveChangesAsync();
 
