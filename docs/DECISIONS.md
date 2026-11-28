@@ -2305,7 +2305,7 @@ The password stopped working on 7 October, so the leftover string in git history
 
 **What I did not understand at first:**
 - `SslMode.Prefer` is Npgsql's default and means TLS is optional. A URL with `sslmode=require` and a converter that ignores it connects with an optional-TLS setting, with no error.
-- `Copy-Item` keeps the source file's old modified time, so after swapping the new file back the build judged it up to date and reused the DLL built from the old code. The second "green" run showed the same 5 failures. The real green run was the later one, after a real rebuild. `--no-incremental` avoids this.
+- `Copy-Item` keeps the source file's old modified time, so after swapping the new file back the build judged it up to date and reused the DLL built from the old code. The second "green" run showed the same 5 failures. The real green run was the later one, after a real rebuild. `dotnet build --no-incremental` followed by `dotnet test --no-build` avoids this. (I first wrote that `dotnet test --no-incremental` avoids it. That flag does not exist for `dotnet test`: see Decision 69.)
 - When piped, `dotnet test` prints `Passed!` or `Failed!` lines, not `Test summary`, so my filter printed nothing twice and I never saw the full-suite result locally. CI's run is the result that counts.
 - The direct and pooled Neon strings are different hosts, and the migration lock is the reason to use the direct one. I have not tested the pooled one.
 
@@ -2322,6 +2322,43 @@ The password stopped working on 7 October, so the leftover string in git history
 
 **Source verification:** The local outputs only: the failed Npgsql parse, the 5 red and 13 green test runs, the migration log lines and the health response. I have not yet read Neon's connection and branching documentation, Npgsql's documentation on `SslMode` and `ChannelBinding`, or Render's documentation on `sync: false`.
 
----**Note:** This log is living. New decisions will be added as work continues.
+---### Decision 69: Deleting A Test Case That Is In A Run Returns 409, Proven On A Real PostgreSQL
 
-Last updated: November 27, 2026
+**Date:** November 28, 2026
+
+**Context:** Brief section 2 asks for full create, read, update and delete on test cases, and brief 3.7 asks for integration tests against a real database. In `TestifyDbContext`, `TestRunResult` and `Defect` point at `TestCase` with `ON DELETE RESTRICT`. The in-memory provider does not enforce foreign keys, so every existing test deleted cases happily and I suspected, from reading the code only, that PostgreSQL would reject the delete. The Delete button for test cases is in the UI.
+
+**What I asked the AI:** For a test that shows the real behaviour first, and a fix that fits the brief. I chose between returning 409 (keep run history) and cascading the delete (lose results and defects). I chose 409 because a tester should not lose run history and defects when someone deletes a case, and because the brief says a defect links back to the test case that produced it. Docker does not run on my laptop, so the real PostgreSQL proof had to come from CI.
+
+**What it gave me:**
+1. Three in-memory tests (`TestCaseDeleteTests`): a case in a run returns 409 with the code `TEST_CASE_IN_USE`, the case is still there afterwards, and a case in no run can still be deleted (passes before and after on purpose).
+2. One real PostgreSQL test (`PostgresDeleteTests`), which skips without Docker and fails in CI if Docker is missing.
+3. A five line change in `TestCasesController.DeleteTestCase`: if any `TestRunResult` points at the case, return 409 in the standard error shape.
+
+**What I changed and why:**
+1. Committed the tests alone first. CI showed `Failed: 3, Passed: 157, Total: 160`. The in-memory delete returned 204 where 409 was expected, and the follow-up read returned 404 where 200 was expected. The PostgreSQL test failed with `DbUpdateException`, caused by `PostgresException 23503: update or delete on table "TestCases" violates foreign key constraint "FK_TestRunResults_TestCases_TestCaseId"`, thrown at `TestCasesController.cs` line 168. So the suspicion was true: on PostgreSQL the delete crashed, and no earlier test could have shown it.
+2. Added the check and the 409. Locally: `TestCaseDeleteTests` 3 of 3 pass, and the full suite shows `Failed: 0, Passed: 156, Skipped: 4, Total: 160`. The 4 skips are the PostgreSQL tests, which need Docker. `dotnet format` printed nothing. The real PostgreSQL green run is the CI run on the fix commit (PR #117). I did not copy its summary line into this entry.
+3. The frontend already shows the API's error message when a delete fails, so a user should see "This test case is part of a test run and cannot be deleted". I read that code and did not try it in the browser.
+
+**What I did not understand at first:**
+- A foreign key with `RESTRICT` is checked by the database, not by EF. The in-memory provider has no such check, so a green in-memory suite said nothing about this. This is the same lesson as Decision 46, in a different place.
+- In the test client an unhandled server exception is thrown inside the test (`DbUpdateException`) and does not appear as a 500 (Decision 34). In production the same crash would be a 500 with an empty body, because there is no `UseExceptionHandler` (CODE_REVIEW 3.8).
+- `--no-incremental` is a `dotnet build` flag. `dotnet test --no-incremental` fails with `MSB1001: Unknown switch`, and the failure was hidden because my output filter printed nothing. The right sequence is `dotnet build --no-incremental`, then `dotnet test --no-build`.
+- A command that prints nothing is not a passing command. I treated empty output as a result for one step and only noticed from the CI log.
+
+**Where the AI cost me time:**
+- It gave me `--no-incremental` for `dotnet test` twice, so one whole verification step produced no result. It also wrote that this flag avoids the stale-build trap in Decision 68, which was wrong.
+- It said my filter would show a summary. Piped output prints `Passed!` or `Failed!`, which I had already found in Decision 67.
+
+**Result:** RESOLVED for deleting a test case. Limits:
+- Deleting a test run that has defects, and deleting a project that has runs with defects, hit the same `RESTRICT` rule (`Defect` to `TestRunResult`). I have read the model and not tested either one.
+- A 409 means a case in any run, even an old completed one, can never be deleted. A user would need to delete the run first, which has its own problem above.
+- I have not tried the 409 message in the browser.
+- I have not read PostgreSQL's documentation on `ON DELETE RESTRICT` or Microsoft's on handling `DbUpdateException`.
+
+**Source verification:** The CI log of the tests-only commit (`Failed: 3, Passed: 157, Total: 160`, the `23503` message and the stack trace), the `MSB1001` output from `dotnet test --no-incremental`, and the local runs after the fix (3 of 3, then `Passed: 156, Skipped: 4`).
+
+---
+**Note:** This log is living. New decisions will be added as work continues.
+
+Last updated: November 28, 2026
